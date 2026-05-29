@@ -1,0 +1,35 @@
+<Project>
+	<!-- Walk past this file (the nearest Directory.Build.props for src projects)
+	     to import the repo-root one, then layer the shared library packaging
+	     metadata on top. Test projects under tests/ do not see this file and so
+	     stay non-packable. -->
+	<Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+	<PropertyGroup>
+		<Authors>Anton Zhelezniakou</Authors>
+		<Copyright>Copyright (c) 2026 Anton Zhelezniakou</Copyright>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageReleaseNotes Condition="Exists('$(RepoRoot)release-notes.md')">$([System.IO.File]::ReadAllText('$(RepoRoot)release-notes.md'))</PackageReleaseNotes>
+
+		<PackageProjectUrl>https://github.com/ZelAnton/vcs-toolkit-dotNet</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/ZelAnton/vcs-toolkit-dotNet</RepositoryUrl>
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+		<EmbedUntrackedSources>true</EmbedUntrackedSources>
+
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+
+		<Deterministic>true</Deterministic>
+		<ContinuousIntegrationBuild Condition="'$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="$(RepoRoot)README.md" Pack="true" PackagePath="\" />
+		<None Include="$(RepoRoot)CHANGELOG.md" Pack="true" PackagePath="\" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="All" />
+	</ItemGroup>
+</Project>

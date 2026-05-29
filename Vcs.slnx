@@ -1,0 +1,16 @@
+<Solution>
+	<Folder Name="/Tests/">
+		<Project Path="tests/Vcs.Git.Tests/Vcs.Git.Tests.csproj">
+			<BuildDependency Project="src/Vcs.Git/Vcs.Git.csproj" />
+		</Project>
+		<Project Path="tests/Vcs.Jujutsu.Tests/Vcs.Jujutsu.Tests.csproj">
+			<BuildDependency Project="src/Vcs.Jujutsu/Vcs.Jujutsu.csproj" />
+		</Project>
+		<Project Path="tests/Vcs.GitHub.Tests/Vcs.GitHub.Tests.csproj">
+			<BuildDependency Project="src/Vcs.GitHub/Vcs.GitHub.csproj" />
+		</Project>
+	</Folder>
+	<Project Path="src/Vcs.Git/Vcs.Git.csproj" />
+	<Project Path="src/Vcs.Jujutsu/Vcs.Jujutsu.csproj" />
+	<Project Path="src/Vcs.GitHub/Vcs.GitHub.csproj" />
+</Solution>

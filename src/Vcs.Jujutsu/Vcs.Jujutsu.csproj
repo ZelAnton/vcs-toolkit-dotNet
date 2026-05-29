@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!-- Shared metadata (authors, license, URLs, symbols, SourceLink, README/CHANGELOG
+	     pack items) comes from src/Directory.Build.props. Only the per-package
+	     identity lives here. -->
+	<PropertyGroup>
+		<PackageId>Vcs.Jujutsu</PackageId>
+		<Description>Automate Jujutsu (jj) through CLI process execution from .NET.</Description>
+		<PackageTags>jujutsu;jj;vcs;cli;automation;process</PackageTags>
+	</PropertyGroup>
+
+</Project>

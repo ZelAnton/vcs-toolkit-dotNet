@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!-- Shared metadata (authors, license, URLs, symbols, SourceLink, README/CHANGELOG
+	     pack items) comes from src/Directory.Build.props. Only the per-package
+	     identity lives here. -->
+	<PropertyGroup>
+		<PackageId>Vcs.GitHub</PackageId>
+		<Description>Automate GitHub through the gh CLI via process execution from .NET.</Description>
+		<PackageTags>github;gh;cli;automation;process</PackageTags>
+	</PropertyGroup>
+
+</Project>
