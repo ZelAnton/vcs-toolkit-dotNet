@@ -26,8 +26,38 @@ dotnet add package Vcs.GitHub
 
 ## Usage
 
-TODO: document the public API of each package with usage examples. The current
-types (`GitCli`, `JujutsuCli`, `GitHubCli`) are placeholders.
+Each package exposes one client type with `async` command methods plus a raw
+escape hatch (`RunAsync` throws on a non-zero exit; `RunRawAsync` returns the
+full result without throwing). Process execution is handled by
+[ProcessKit](https://www.nuget.org/packages/ProcessKit).
+
+### `Vcs.Git`
+
+```csharp
+using Vcs.Git;
+
+var git = new GitCli(workingDirectory: "/path/to/repo");
+
+string version = await git.VersionAsync();          // "git version 2.45.0"
+string branch  = await git.CurrentBranchAsync();    // "main"
+
+foreach (var entry in await git.StatusAsync())
+    Console.WriteLine($"{entry.Index}{entry.WorkTree} {entry.Path}");
+
+await git.StageAsync(["src/Program.cs"]);
+string hash = await git.CommitAsync("Add program", all: false);
+
+foreach (var commit in await git.LogAsync(maxCount: 10))
+    Console.WriteLine($"{commit.ShortHash} {commit.Date:d} {commit.Subject}");
+
+// Escape hatch for anything not yet modelled — RunRawAsync never throws:
+var result = await git.RunRawAsync(["remote", "-v"]);
+if (result.IsSuccess)
+    Console.WriteLine(result.StdOut);
+```
+
+The `Vcs.Jujutsu` (`JujutsuCli`) and `Vcs.GitHub` (`GitHubCli`) clients follow
+the same shape.
 
 ## Repository layout
 
