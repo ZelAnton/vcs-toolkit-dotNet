@@ -251,7 +251,11 @@ public class GitHubCliTests
 		var gh = new GitHubCli(executable: "vcs-toolkit-no-such-binary-zzz");
 
 		var ex = Assert.ThrowsAsync<GitHubCliException>(async () => await gh.RunAsync(["pr", "list"]));
-		Assert.That(ex!.Message, Does.Contain("Could not start"));
+		Assert.Multiple(() =>
+		{
+			Assert.That(ex!.Message, Does.Contain("Could not start"));
+			Assert.That(ex.InnerException, Is.InstanceOf<System.ComponentModel.Win32Exception>());
+		});
 	}
 
 	[Test]
@@ -362,6 +366,38 @@ public class GitHubCliTests
 	{
 		var gh = new GitHubCli(new FakeExecutor(Ok(string.Empty)));
 		Assert.ThrowsAsync<ArgumentException>(async () => await gh.ApiAsync(string.Empty));
+	}
+
+	[Test]
+	public async Task Client_IsUsableThroughIGitHubCliInterface()
+	{
+		// Consumers depend on IGitHubCli (not the concrete class) and can substitute a mock in tests.
+		var fake = new FakeExecutor(Ok("gh version 2.62.0\n"), Ok(string.Empty));
+		IGitHubCli gh = new GitHubCli(fake);
+
+		var version = await gh.VersionAsync();
+		var authenticated = await gh.IsAuthenticatedAsync();
+		Assert.Multiple(() =>
+		{
+			Assert.That(gh.Executable, Is.EqualTo("gh"));
+			Assert.That(version, Is.EqualTo("gh version 2.62.0"));
+			Assert.That(authenticated, Is.True);
+		});
+	}
+
+	[Test]
+	public void Exception_PublicConstructor_SetsFields_ForMocking()
+	{
+		var ex = new GitHubCliException("boom", exitCode: 4, stdErr: "gh error", arguments: "pr list", timedOut: true);
+
+		Assert.Multiple(() =>
+		{
+			Assert.That(ex.Message, Is.EqualTo("boom"));
+			Assert.That(ex.ExitCode, Is.EqualTo(4));
+			Assert.That(ex.StdErr, Is.EqualTo("gh error"));
+			Assert.That(ex.Arguments, Is.EqualTo("pr list"));
+			Assert.That(ex.TimedOut, Is.True);
+		});
 	}
 
 	// Exercises the real `gh` binary; excluded from the default CI run.

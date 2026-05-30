@@ -7,8 +7,17 @@ namespace Vcs.GitHub;
 /// </summary>
 public sealed class GitHubCliException : Exception
 {
-	internal GitHubCliException(int exitCode, string stdErr, string arguments, bool timedOut, string message)
-		: base(message)
+	/// <summary>
+	/// Creates an exception describing a failed <c>gh</c> invocation. Public so consumers can
+	/// construct it in tests/mocks (e.g. to make a mocked <see cref="IGitHubCli"/> throw).
+	/// </summary>
+	public GitHubCliException(string message, int exitCode = 0, string stdErr = "", string arguments = "", bool timedOut = false)
+		: this(exitCode, stdErr, arguments, timedOut, message)
+	{
+	}
+
+	internal GitHubCliException(int exitCode, string stdErr, string arguments, bool timedOut, string message, Exception? innerException = null)
+		: base(message, innerException)
 	{
 		ExitCode = exitCode;
 		StdErr = stdErr;

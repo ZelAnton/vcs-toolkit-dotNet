@@ -7,8 +7,17 @@ namespace Vcs.Jujutsu;
 /// </summary>
 public sealed class JujutsuCliException : Exception
 {
-	internal JujutsuCliException(int exitCode, string stdErr, string arguments, bool timedOut, string message)
-		: base(message)
+	/// <summary>
+	/// Creates an exception describing a failed <c>jj</c> invocation. Public so consumers can
+	/// construct it in tests/mocks (e.g. to make a mocked <see cref="IJujutsuCli"/> throw).
+	/// </summary>
+	public JujutsuCliException(string message, int exitCode = 0, string stdErr = "", string arguments = "", bool timedOut = false)
+		: this(exitCode, stdErr, arguments, timedOut, message)
+	{
+	}
+
+	internal JujutsuCliException(int exitCode, string stdErr, string arguments, bool timedOut, string message, Exception? innerException = null)
+		: base(message, innerException)
 	{
 		ExitCode = exitCode;
 		StdErr = stdErr;

@@ -8,7 +8,7 @@ namespace Vcs.Jujutsu;
 /// <see cref="RunAsync(IEnumerable{string}, CancellationToken)"/>) for anything not yet modelled.
 /// Requires <c>jj</c> on <c>PATH</c> (or an explicit executable path).
 /// </summary>
-public sealed class JujutsuCli
+public sealed class JujutsuCli : IJujutsuCli
 {
 	// Field/record delimiters used in the `jj log` template. The C# side splits on the real control
 	// characters; the template literal sends jj the textual escapes "\x1f" / "\x1e".

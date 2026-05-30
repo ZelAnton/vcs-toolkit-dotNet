@@ -217,7 +217,11 @@ public class JujutsuCliTests
 		var jj = new JujutsuCli(executable: "vcs-toolkit-no-such-binary-zzz");
 
 		var ex = Assert.ThrowsAsync<JujutsuCliException>(async () => await jj.RunAsync(["status"]));
-		Assert.That(ex!.Message, Does.Contain("Could not start"));
+		Assert.Multiple(() =>
+		{
+			Assert.That(ex!.Message, Does.Contain("Could not start"));
+			Assert.That(ex.InnerException, Is.InstanceOf<System.ComponentModel.Win32Exception>());
+		});
 	}
 
 	[Test]
@@ -385,6 +389,36 @@ public class JujutsuCliTests
 	{
 		var jj = new JujutsuCli(new FakeExecutor(Ok(string.Empty)));
 		Assert.ThrowsAsync<ArgumentException>(async () => await jj.BookmarkSetAsync(string.Empty));
+	}
+
+	[Test]
+	public async Task Client_IsUsableThroughIJujutsuCliInterface()
+	{
+		// Consumers depend on IJujutsuCli (not the concrete class) and can substitute a mock in tests.
+		var fake = new FakeExecutor(Ok("jj 0.38.0\n"));
+		IJujutsuCli jj = new JujutsuCli(fake);
+
+		var version = await jj.VersionAsync();
+		Assert.Multiple(() =>
+		{
+			Assert.That(jj.Executable, Is.EqualTo("jj"));
+			Assert.That(version, Is.EqualTo("jj 0.38.0"));
+		});
+	}
+
+	[Test]
+	public void Exception_PublicConstructor_SetsFields_ForMocking()
+	{
+		var ex = new JujutsuCliException("boom", exitCode: 1, stdErr: "Error", arguments: "log", timedOut: true);
+
+		Assert.Multiple(() =>
+		{
+			Assert.That(ex.Message, Is.EqualTo("boom"));
+			Assert.That(ex.ExitCode, Is.EqualTo(1));
+			Assert.That(ex.StdErr, Is.EqualTo("Error"));
+			Assert.That(ex.Arguments, Is.EqualTo("log"));
+			Assert.That(ex.TimedOut, Is.True);
+		});
 	}
 
 	// Exercises the real `jj` binary; excluded from the default CI run.

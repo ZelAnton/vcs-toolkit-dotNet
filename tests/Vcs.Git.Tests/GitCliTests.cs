@@ -228,7 +228,11 @@ public class GitCliTests
 		var git = new GitCli(executable: "vcs-toolkit-no-such-binary-zzz");
 
 		var ex = Assert.ThrowsAsync<GitCliException>(async () => await git.RunAsync(["status"]));
-		Assert.That(ex!.Message, Does.Contain("Could not start"));
+		Assert.Multiple(() =>
+		{
+			Assert.That(ex!.Message, Does.Contain("Could not start"));
+			Assert.That(ex.InnerException, Is.InstanceOf<System.ComponentModel.Win32Exception>());
+		});
 	}
 
 	[Test]
@@ -393,6 +397,38 @@ public class GitCliTests
 	{
 		var git = new GitCli(new FakeExecutor(Ok(string.Empty)));
 		Assert.ThrowsAsync<ArgumentException>(async () => await git.CheckoutAsync(string.Empty));
+	}
+
+	[Test]
+	public async Task Client_IsUsableThroughIGitCliInterface()
+	{
+		// Consumers depend on IGitCli (not the concrete class) and can substitute a mock in tests.
+		var fake = new FakeExecutor(Ok("git version 2.45.0\n"), Ok("main\n"));
+		IGitCli git = new GitCli(fake);
+
+		var version = await git.VersionAsync();
+		var branch = await git.CurrentBranchAsync();
+		Assert.Multiple(() =>
+		{
+			Assert.That(git.Executable, Is.EqualTo("git"));
+			Assert.That(version, Is.EqualTo("git version 2.45.0"));
+			Assert.That(branch, Is.EqualTo("main"));
+		});
+	}
+
+	[Test]
+	public void Exception_PublicConstructor_SetsFields_ForMocking()
+	{
+		var ex = new GitCliException("boom", exitCode: 128, stdErr: "fatal", arguments: "status", timedOut: true);
+
+		Assert.Multiple(() =>
+		{
+			Assert.That(ex.Message, Is.EqualTo("boom"));
+			Assert.That(ex.ExitCode, Is.EqualTo(128));
+			Assert.That(ex.StdErr, Is.EqualTo("fatal"));
+			Assert.That(ex.Arguments, Is.EqualTo("status"));
+			Assert.That(ex.TimedOut, Is.True);
+		});
 	}
 
 	// Exercises the real `git` binary; excluded from the default CI run.

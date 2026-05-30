@@ -108,6 +108,23 @@ string json = await gh.ApiAsync("repos/OWNER/REPO/labels");
 
 Requires an authenticated `gh` session (`gh auth login`).
 
+### Dependency injection & mocking
+
+Each client implements an interface exposing its full command surface —
+`IGitCli` (`GitCli`), `IJujutsuCli` (`JujutsuCli`), `IGitHubCli` (`GitHubCli`).
+Depend on the interface so call sites stay testable: register the concrete type
+for DI and substitute a mock in unit tests with any mocking framework.
+
+```csharp
+// production wiring
+services.AddSingleton<IGitCli>(_ => new GitCli(workingDirectory: repoPath));
+
+// in a test (NSubstitute) — no real `git` process is started
+var git = Substitute.For<IGitCli>();
+git.CurrentBranchAsync().Returns("main");
+git.LogAsync(maxCount: 1).Returns([new GitCommit("abc", "abc", "Ann", DateTimeOffset.UtcNow, "Init")]);
+```
+
 ## Repository layout
 
 ```

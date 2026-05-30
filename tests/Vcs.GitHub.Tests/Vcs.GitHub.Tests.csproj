@@ -2,7 +2,7 @@
 
 	<PropertyGroup>
 		<IsPackable>false</IsPackable>
-		<NoWarn>$(NoWarn);CA1707;CA1861</NoWarn>
+		<NoWarn>$(NoWarn);CA1707;CA1861;CA1859</NoWarn>
 		<AssemblySearchPaths>$(AssemblySearchPaths);$(GitHubProjectDir)bin\$(Configuration)\$(TargetFramework)</AssemblySearchPaths>
 	</PropertyGroup>
 

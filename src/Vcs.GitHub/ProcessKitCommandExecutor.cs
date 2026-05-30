@@ -42,7 +42,7 @@ internal sealed class ProcessKitCommandExecutor : ICommandExecutor
 			// it as the library's own exception instead of leaking the raw Win32Exception to callers.
 			var joined = string.Join(' ', arguments);
 			throw new GitHubCliException(-1, ex.Message, joined, false,
-				$"Could not start `{_executable}`: {ex.Message}");
+				$"Could not start `{_executable}`: {ex.Message}", ex);
 		}
 
 		return new GitHubCommandResult(result.StdOut, result.StdErr, result.ExitCode) { WasTimedOut = result.WasTimedOut };

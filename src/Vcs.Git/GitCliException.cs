@@ -7,8 +7,17 @@ namespace Vcs.Git;
 /// </summary>
 public sealed class GitCliException : Exception
 {
-	internal GitCliException(int exitCode, string stdErr, string arguments, bool timedOut, string message)
-		: base(message)
+	/// <summary>
+	/// Creates an exception describing a failed <c>git</c> invocation. Public so consumers can
+	/// construct it in tests/mocks (e.g. to make a mocked <see cref="IGitCli"/> throw).
+	/// </summary>
+	public GitCliException(string message, int exitCode = 0, string stdErr = "", string arguments = "", bool timedOut = false)
+		: this(exitCode, stdErr, arguments, timedOut, message)
+	{
+	}
+
+	internal GitCliException(int exitCode, string stdErr, string arguments, bool timedOut, string message, Exception? innerException = null)
+		: base(message, innerException)
 	{
 		ExitCode = exitCode;
 		StdErr = stdErr;

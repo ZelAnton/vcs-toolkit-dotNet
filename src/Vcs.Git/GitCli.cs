@@ -7,7 +7,7 @@ namespace Vcs.Git;
 /// a raw escape hatch (<see cref="RunRawAsync"/> / <see cref="RunAsync(IEnumerable{string}, CancellationToken)"/>)
 /// for anything not yet modelled. Requires <c>git</c> on <c>PATH</c> (or an explicit executable path).
 /// </summary>
-public sealed class GitCli
+public sealed class GitCli : IGitCli
 {
 	// ASCII unit/record separators — used as field/record delimiters in `git log` pretty formats so
 	// they survive arbitrary subject text that could contain spaces, tabs or newlines.

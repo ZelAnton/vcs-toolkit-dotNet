@@ -9,7 +9,7 @@ namespace Vcs.GitHub;
 /// <see cref="RunAsync(IEnumerable{string}, CancellationToken)"/>) for anything not yet modelled.
 /// Requires <c>gh</c> on <c>PATH</c> (or an explicit executable path) and an authenticated session.
 /// </summary>
-public sealed class GitHubCli
+public sealed class GitHubCli : IGitHubCli
 {
 	private const string PullRequestJsonFields = "number,title,state,headRefName,baseRefName,url";
 	private const string RepositoryJsonFields = "name,owner,description,url,isPrivate,defaultBranchRef";
