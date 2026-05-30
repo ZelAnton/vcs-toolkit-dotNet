@@ -11,9 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Initial `Vcs.Git`, `Vcs.Jujutsu`, and `Vcs.GitHub` packages with placeholder CLI client types.
 - `Vcs.Git`: async `GitCli` over the `git` CLI — `VersionAsync`, `InitAsync`, `StatusAsync`, `StageAsync`, `CommitAsync`, `LogAsync`, `CurrentBranchAsync`, `CreateBranchAsync`, `CheckoutAsync` — plus a raw escape hatch (`RunAsync`/`RunRawAsync`), `GitCommandResult`, `GitCommit`/`GitStatusEntry` models, and `GitCliException`. Process execution is backed by ProcessKit.
+- `Vcs.Jujutsu`: async `JujutsuCli` over the `jj` CLI — `VersionAsync`, `StatusAsync`, `DescribeAsync`, `NewAsync`, `LogAsync`, `BookmarkListAsync`, `BookmarkSetAsync`, `GitFetchAsync`, `GitPushAsync` — plus a raw escape hatch (`RunAsync`/`RunRawAsync`), `JjCommandResult`, the `JjChange` model, and `JujutsuCliException`. Process execution is backed by ProcessKit.
 
 ### Changed
 - `Vcs.Git`: replaced the placeholder `GitCli.ExecutableName` property with the real command API (`GitCli.Executable`).
+- `Vcs.Jujutsu`: replaced the placeholder `JujutsuCli.ExecutableName` property with the real command API (`JujutsuCli.Executable`).
 
 ### Fixed
 -

@@ -56,8 +56,25 @@ if (result.IsSuccess)
     Console.WriteLine(result.StdOut);
 ```
 
-The `Vcs.Jujutsu` (`JujutsuCli`) and `Vcs.GitHub` (`GitHubCli`) clients follow
-the same shape.
+### `Vcs.Jujutsu`
+
+```csharp
+using Vcs.Jujutsu;
+
+var jj = new JujutsuCli(workingDirectory: "/path/to/repo");
+
+await jj.DescribeAsync("Concise summary");          // jj describe -m ...
+await jj.NewAsync("Next change");                   // jj new -m ...
+
+foreach (var change in await jj.LogAsync(limit: 10))
+    Console.WriteLine($"{change.ChangeId[..8]} {(change.Empty ? "(empty) " : "")}{change.Description}");
+
+await jj.GitFetchAsync();
+await jj.BookmarkSetAsync("main", revision: "@-");
+await jj.GitPushAsync("main");
+```
+
+The `Vcs.GitHub` (`GitHubCli`) client follows the same shape.
 
 ## Repository layout
 
