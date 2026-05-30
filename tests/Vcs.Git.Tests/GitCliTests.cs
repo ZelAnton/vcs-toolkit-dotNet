@@ -239,6 +239,162 @@ public class GitCliTests
 		Assert.ThrowsAsync<GitCliException>(async () => await git.RunRawAsync(["status"]));
 	}
 
+	[Test]
+	public async Task InitAsync_Default_BuildsInit()
+	{
+		var fake = new FakeExecutor(Ok(string.Empty));
+		await new GitCli(fake).InitAsync();
+
+		Assert.That(fake.Calls[0], Is.EqualTo(new[] { "init" }));
+	}
+
+	[Test]
+	public async Task InitAsync_Bare_AddsBareFlag()
+	{
+		var fake = new FakeExecutor(Ok(string.Empty));
+		await new GitCli(fake).InitAsync(bare: true);
+
+		Assert.That(fake.Calls[0], Is.EqualTo(new[] { "init", "--bare" }));
+	}
+
+	[Test]
+	public async Task CreateBranchAsync_BuildsArguments()
+	{
+		var fake = new FakeExecutor(Ok(string.Empty));
+		await new GitCli(fake).CreateBranchAsync("feature");
+
+		Assert.That(fake.Calls[0], Is.EqualTo(new[] { "branch", "feature" }));
+	}
+
+	[Test]
+	public async Task CheckoutAsync_BuildsArguments()
+	{
+		var fake = new FakeExecutor(Ok(string.Empty));
+		await new GitCli(fake).CheckoutAsync("feature");
+
+		Assert.That(fake.Calls[0], Is.EqualTo(new[] { "checkout", "feature" }));
+	}
+
+	[Test]
+	public async Task CommitAsync_WithoutAll_OmitsAllFlag()
+	{
+		var fake = new FakeExecutor(Ok("[main abc] msg"), Ok("abc\n"));
+		await new GitCli(fake).CommitAsync("msg");
+
+		Assert.That(fake.Calls[0], Is.EqualTo(new[] { "commit", "-m", "msg" }));
+	}
+
+	[Test]
+	public async Task LogAsync_NoMaxCount_OmitsLimit()
+	{
+		var fake = new FakeExecutor(Ok(string.Empty));
+		await new GitCli(fake).LogAsync();
+
+		Assert.Multiple(() =>
+		{
+			Assert.That(fake.Calls[0][0], Is.EqualTo("log"));
+			Assert.That(fake.Calls[0], Does.Not.Contain("-n"));
+		});
+	}
+
+	[Test]
+	public async Task LogAsync_EmptyOutput_ReturnsEmpty()
+	{
+		var commits = await new GitCli(new FakeExecutor(Ok(string.Empty))).LogAsync();
+
+		Assert.That(commits, Is.Empty);
+	}
+
+	[Test]
+	public async Task StatusAsync_HandlesCrlf_AndStripsCarriageReturn()
+	{
+		var fake = new FakeExecutor(Ok("M  a.cs\r\n M b.cs\r\n"));
+		var entries = await new GitCli(fake).StatusAsync();
+
+		Assert.That(entries, Has.Count.EqualTo(2));
+		Assert.Multiple(() =>
+		{
+			Assert.That(entries[0], Is.EqualTo(new GitStatusEntry('M', ' ', "a.cs")));
+			Assert.That(entries[1], Is.EqualTo(new GitStatusEntry(' ', 'M', "b.cs")));
+		});
+	}
+
+	[Test]
+	public async Task StatusAsync_SkipsTooShortLines()
+	{
+		var fake = new FakeExecutor(Ok("M  real.cs\nXX\n"));
+		var entries = await new GitCli(fake).StatusAsync();
+
+		Assert.That(entries, Has.Count.EqualTo(1));
+		Assert.That(entries[0].Path, Is.EqualTo("real.cs"));
+	}
+
+	[Test]
+	public async Task RunAsync_Success_ReturnsTrimmedStdout()
+	{
+		var result = await new GitCli(new FakeExecutor(Ok("  hello \n"))).RunAsync(["whatever"]);
+
+		Assert.That(result, Is.EqualTo("hello"));
+	}
+
+	[Test]
+	public void WorkingDirectory_RoundTrips()
+	{
+		Assert.Multiple(() =>
+		{
+			Assert.That(new GitCli(workingDirectory: "/repo").WorkingDirectory, Is.EqualTo("/repo"));
+			Assert.That(new GitCli().WorkingDirectory, Is.Null);
+		});
+	}
+
+	[Test]
+	public void Constructor_EmptyExecutable_Throws()
+	{
+		Assert.Throws<ArgumentException>(() => new GitCli(executable: string.Empty));
+	}
+
+	[Test]
+	public void RunAsync_NullArguments_Throws()
+	{
+		var git = new GitCli(new FakeExecutor(Ok(string.Empty)));
+		Assert.ThrowsAsync<ArgumentNullException>(async () => await git.RunAsync(null!));
+	}
+
+	[Test]
+	public void RunRawAsync_NullArguments_Throws()
+	{
+		var git = new GitCli(new FakeExecutor(Ok(string.Empty)));
+		Assert.ThrowsAsync<ArgumentNullException>(async () => await git.RunRawAsync(null!));
+	}
+
+	[Test]
+	public void StageAsync_NullPaths_Throws()
+	{
+		var git = new GitCli(new FakeExecutor(Ok(string.Empty)));
+		Assert.ThrowsAsync<ArgumentNullException>(async () => await git.StageAsync(null!));
+	}
+
+	[Test]
+	public void CommitAsync_NullMessage_Throws()
+	{
+		var git = new GitCli(new FakeExecutor(Ok(string.Empty)));
+		Assert.ThrowsAsync<ArgumentNullException>(async () => await git.CommitAsync(null!));
+	}
+
+	[Test]
+	public void CreateBranchAsync_EmptyName_Throws()
+	{
+		var git = new GitCli(new FakeExecutor(Ok(string.Empty)));
+		Assert.ThrowsAsync<ArgumentException>(async () => await git.CreateBranchAsync(string.Empty));
+	}
+
+	[Test]
+	public void CheckoutAsync_EmptyReference_Throws()
+	{
+		var git = new GitCli(new FakeExecutor(Ok(string.Empty)));
+		Assert.ThrowsAsync<ArgumentException>(async () => await git.CheckoutAsync(string.Empty));
+	}
+
 	// Exercises the real `git` binary; excluded from the default CI run.
 	[Test]
 	[Explicit("requires the git binary to be installed")]

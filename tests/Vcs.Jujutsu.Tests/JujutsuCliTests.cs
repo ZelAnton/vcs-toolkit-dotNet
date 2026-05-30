@@ -220,6 +220,173 @@ public class JujutsuCliTests
 		Assert.That(ex!.Message, Does.Contain("Could not start"));
 	}
 
+	[Test]
+	public async Task StatusAsync_BuildsArguments_AndTrims()
+	{
+		var fake = new FakeExecutor(Ok("Working copy changes:\n"));
+		var status = await new JujutsuCli(fake).StatusAsync();
+
+		Assert.That(fake.Calls[0], Is.EqualTo(new[] { "status" }));
+		Assert.That(status, Is.EqualTo("Working copy changes:"));
+	}
+
+	[Test]
+	public async Task BookmarkListAsync_BuildsArguments()
+	{
+		var fake = new FakeExecutor(Ok(string.Empty));
+		await new JujutsuCli(fake).BookmarkListAsync();
+
+		Assert.That(fake.Calls[0], Is.EqualTo(new[] { "bookmark", "list" }));
+	}
+
+	[Test]
+	public async Task GitPushAsync_NoBookmark_BuildsArguments()
+	{
+		var fake = new FakeExecutor(Ok(string.Empty));
+		await new JujutsuCli(fake).GitPushAsync();
+
+		Assert.That(fake.Calls[0], Is.EqualTo(new[] { "git", "push" }));
+	}
+
+	[Test]
+	public async Task DescribeAsync_DefaultRevision_TargetsWorkingCopy()
+	{
+		var fake = new FakeExecutor(Ok(string.Empty));
+		await new JujutsuCli(fake).DescribeAsync("msg");
+
+		Assert.That(fake.Calls[0], Is.EqualTo(new[] { "describe", "-r", "@", "-m", "msg" }));
+	}
+
+	[Test]
+	public async Task BookmarkSetAsync_DefaultRevision_TargetsWorkingCopy()
+	{
+		var fake = new FakeExecutor(Ok(string.Empty));
+		await new JujutsuCli(fake).BookmarkSetAsync("main");
+
+		Assert.That(fake.Calls[0], Is.EqualTo(new[] { "bookmark", "set", "main", "-r", "@" }));
+	}
+
+	[Test]
+	public async Task NewAsync_MessageOnly_BuildsArguments()
+	{
+		var fake = new FakeExecutor(Ok(string.Empty));
+		await new JujutsuCli(fake).NewAsync("desc");
+
+		Assert.That(fake.Calls[0], Is.EqualTo(new[] { "new", "-m", "desc" }));
+	}
+
+	[Test]
+	public async Task NewAsync_ParentsOnly_BuildsArguments()
+	{
+		var fake = new FakeExecutor(Ok(string.Empty));
+		await new JujutsuCli(fake).NewAsync(parents: ["@-"]);
+
+		Assert.That(fake.Calls[0], Is.EqualTo(new[] { "new", "@-" }));
+	}
+
+	[Test]
+	public async Task LogAsync_NoArguments_OmitsRevsetAndLimit()
+	{
+		var fake = new FakeExecutor(Ok(string.Empty));
+		await new JujutsuCli(fake).LogAsync();
+
+		Assert.Multiple(() =>
+		{
+			Assert.That(fake.Calls[0][0], Is.EqualTo("log"));
+			Assert.That(fake.Calls[0], Does.Contain("--no-graph"));
+			Assert.That(fake.Calls[0], Does.Contain("-T"));
+			Assert.That(fake.Calls[0], Does.Not.Contain("-r"));
+			Assert.That(fake.Calls[0], Does.Not.Contain("-n"));
+		});
+	}
+
+	[Test]
+	public async Task LogAsync_EmptyOutput_ReturnsEmpty()
+	{
+		var changes = await new JujutsuCli(new FakeExecutor(Ok(string.Empty))).LogAsync();
+
+		Assert.That(changes, Is.Empty);
+	}
+
+	[Test]
+	public async Task LogAsync_RevsetOnly_OmitsLimit()
+	{
+		var fake = new FakeExecutor(Ok(string.Empty));
+		await new JujutsuCli(fake).LogAsync(revset: "@");
+
+		Assert.Multiple(() =>
+		{
+			Assert.That(fake.Calls[0], Does.Contain("-r"));
+			Assert.That(fake.Calls[0], Does.Contain("@"));
+			Assert.That(fake.Calls[0], Does.Not.Contain("-n"));
+		});
+	}
+
+	[Test]
+	public async Task LogAsync_LimitOnly_OmitsRevset()
+	{
+		var fake = new FakeExecutor(Ok(string.Empty));
+		await new JujutsuCli(fake).LogAsync(limit: 3);
+
+		Assert.Multiple(() =>
+		{
+			Assert.That(fake.Calls[0], Does.Contain("-n"));
+			Assert.That(fake.Calls[0], Does.Contain("3"));
+			Assert.That(fake.Calls[0], Does.Not.Contain("-r"));
+		});
+	}
+
+	[Test]
+	public void WorkingDirectory_RoundTrips()
+	{
+		Assert.Multiple(() =>
+		{
+			Assert.That(new JujutsuCli(workingDirectory: "/repo").WorkingDirectory, Is.EqualTo("/repo"));
+			Assert.That(new JujutsuCli().WorkingDirectory, Is.Null);
+		});
+	}
+
+	[Test]
+	public void Constructor_EmptyExecutable_Throws()
+	{
+		Assert.Throws<ArgumentException>(() => new JujutsuCli(executable: string.Empty));
+	}
+
+	[Test]
+	public void RunAsync_NullArguments_Throws()
+	{
+		var jj = new JujutsuCli(new FakeExecutor(Ok(string.Empty)));
+		Assert.ThrowsAsync<ArgumentNullException>(async () => await jj.RunAsync(null!));
+	}
+
+	[Test]
+	public void RunRawAsync_NullArguments_Throws()
+	{
+		var jj = new JujutsuCli(new FakeExecutor(Ok(string.Empty)));
+		Assert.ThrowsAsync<ArgumentNullException>(async () => await jj.RunRawAsync(null!));
+	}
+
+	[Test]
+	public void DescribeAsync_NullMessage_Throws()
+	{
+		var jj = new JujutsuCli(new FakeExecutor(Ok(string.Empty)));
+		Assert.ThrowsAsync<ArgumentNullException>(async () => await jj.DescribeAsync(null!));
+	}
+
+	[Test]
+	public void DescribeAsync_EmptyRevision_Throws()
+	{
+		var jj = new JujutsuCli(new FakeExecutor(Ok(string.Empty)));
+		Assert.ThrowsAsync<ArgumentException>(async () => await jj.DescribeAsync("msg", revision: string.Empty));
+	}
+
+	[Test]
+	public void BookmarkSetAsync_EmptyName_Throws()
+	{
+		var jj = new JujutsuCli(new FakeExecutor(Ok(string.Empty)));
+		Assert.ThrowsAsync<ArgumentException>(async () => await jj.BookmarkSetAsync(string.Empty));
+	}
+
 	// Exercises the real `jj` binary; excluded from the default CI run.
 	[Test]
 	[Explicit("requires the jj binary to be installed")]

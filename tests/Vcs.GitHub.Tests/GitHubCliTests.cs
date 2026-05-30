@@ -94,14 +94,7 @@ public class GitHubCliTests
 
 		var prs = await gh.PrListAsync(state: "all");
 
-		Assert.Multiple(() =>
-		{
-			Assert.That(fake.Calls[0], Does.Contain("pr"));
-			Assert.That(fake.Calls[0], Does.Contain("list"));
-			Assert.That(fake.Calls[0], Does.Contain("--json"));
-			Assert.That(fake.Calls[0], Does.Contain("--state"));
-			Assert.That(fake.Calls[0], Does.Contain("all"));
-		});
+		Assert.That(fake.Calls[0], Is.EqualTo(new[] { "pr", "list", "--json", "number,title,state,headRefName,baseRefName,url", "--state", "all" }));
 		Assert.That(prs, Has.Count.EqualTo(2));
 		Assert.Multiple(() =>
 		{
@@ -161,7 +154,7 @@ public class GitHubCliTests
 
 		var repo = await gh.RepoViewAsync("ZelAnton/vcs-toolkit-dotNet");
 
-		Assert.That(fake.Calls[0], Does.Contain("ZelAnton/vcs-toolkit-dotNet"));
+		Assert.That(fake.Calls[0], Is.EqualTo(new[] { "repo", "view", "ZelAnton/vcs-toolkit-dotNet", "--json", "name,owner,description,url,isPrivate,defaultBranchRef" }));
 		Assert.That(repo, Is.EqualTo(new GitHubRepository(
 			"vcs-toolkit-dotNet", "ZelAnton", "A .NET toolkit",
 			"https://github.com/ZelAnton/vcs-toolkit-dotNet", false, "main")));
@@ -272,6 +265,103 @@ public class GitHubCliTests
 		var prs = await gh.PrListAsync();
 
 		Assert.That(prs[0].Number, Is.EqualTo(0));
+	}
+
+	[Test]
+	public async Task RepoViewAsync_NoRepository_OmitsPositional()
+	{
+		const string json = """{ "name": "r", "owner": { "login": "o" }, "url": "u", "isPrivate": false, "defaultBranchRef": { "name": "main" } }""";
+		var fake = new FakeExecutor(Ok(json));
+		await new GitHubCli(fake).RepoViewAsync();
+
+		Assert.That(fake.Calls[0], Is.EqualTo(new[] { "repo", "view", "--json", "name,owner,description,url,isPrivate,defaultBranchRef" }));
+	}
+
+	[Test]
+	public async Task RepoViewAsync_EmptyDescription_BecomesNull()
+	{
+		const string json = """{ "name": "r", "owner": { "login": "o" }, "description": "", "url": "u", "isPrivate": false, "defaultBranchRef": { "name": "main" } }""";
+		var repo = await new GitHubCli(new FakeExecutor(Ok(json))).RepoViewAsync();
+
+		Assert.That(repo.Description, Is.Null);
+	}
+
+	[Test]
+	public async Task PrListAsync_NoFilters_BuildsBaseArguments()
+	{
+		var fake = new FakeExecutor(Ok("[]"));
+		await new GitHubCli(fake).PrListAsync();
+
+		Assert.That(fake.Calls[0], Is.EqualTo(new[] { "pr", "list", "--json", "number,title,state,headRefName,baseRefName,url" }));
+	}
+
+	[Test]
+	public async Task PrCreateAsync_NoBase_OmitsBaseFlag()
+	{
+		var fake = new FakeExecutor(Ok("https://github.com/o/r/pull/1\n"));
+		await new GitHubCli(fake).PrCreateAsync("t", "b");
+
+		Assert.That(fake.Calls[0], Is.EqualTo(new[] { "pr", "create", "--title", "t", "--body", "b" }));
+	}
+
+	[Test]
+	public async Task ApiAsync_NoMethod_BuildsArguments()
+	{
+		var fake = new FakeExecutor(Ok("{}"));
+		await new GitHubCli(fake).ApiAsync("rate_limit");
+
+		Assert.That(fake.Calls[0], Is.EqualTo(new[] { "api", "rate_limit" }));
+	}
+
+	[Test]
+	public void WorkingDirectory_RoundTrips()
+	{
+		Assert.Multiple(() =>
+		{
+			Assert.That(new GitHubCli(workingDirectory: "/repo").WorkingDirectory, Is.EqualTo("/repo"));
+			Assert.That(new GitHubCli().WorkingDirectory, Is.Null);
+		});
+	}
+
+	[Test]
+	public void Constructor_EmptyExecutable_Throws()
+	{
+		Assert.Throws<ArgumentException>(() => new GitHubCli(executable: string.Empty));
+	}
+
+	[Test]
+	public void RunAsync_NullArguments_Throws()
+	{
+		var gh = new GitHubCli(new FakeExecutor(Ok(string.Empty)));
+		Assert.ThrowsAsync<ArgumentNullException>(async () => await gh.RunAsync(null!));
+	}
+
+	[Test]
+	public void RunRawAsync_NullArguments_Throws()
+	{
+		var gh = new GitHubCli(new FakeExecutor(Ok(string.Empty)));
+		Assert.ThrowsAsync<ArgumentNullException>(async () => await gh.RunRawAsync(null!));
+	}
+
+	[Test]
+	public void PrCreateAsync_NullTitle_Throws()
+	{
+		var gh = new GitHubCli(new FakeExecutor(Ok(string.Empty)));
+		Assert.ThrowsAsync<ArgumentNullException>(async () => await gh.PrCreateAsync(null!, "b"));
+	}
+
+	[Test]
+	public void PrCreateAsync_NullBody_Throws()
+	{
+		var gh = new GitHubCli(new FakeExecutor(Ok(string.Empty)));
+		Assert.ThrowsAsync<ArgumentNullException>(async () => await gh.PrCreateAsync("t", null!));
+	}
+
+	[Test]
+	public void ApiAsync_EmptyEndpoint_Throws()
+	{
+		var gh = new GitHubCli(new FakeExecutor(Ok(string.Empty)));
+		Assert.ThrowsAsync<ArgumentException>(async () => await gh.ApiAsync(string.Empty));
 	}
 
 	// Exercises the real `gh` binary; excluded from the default CI run.
