@@ -19,25 +19,32 @@ public sealed class JujutsuCli
 		"change_id ++ \"\\x1f\" ++ commit_id ++ \"\\x1f\" ++ if(empty, \"true\", \"false\") ++ \"\\x1f\" ++ description.first_line() ++ \"\\x1e\"";
 
 	private readonly ICommandExecutor _executor;
+	private readonly TimeSpan? _defaultTimeout;
 
 	/// <summary>
 	/// Creates a client that drives <paramref name="executable"/> (default <c>jj</c>) with
 	/// <paramref name="workingDirectory"/> as the process working directory (default: the current
-	/// directory of the host process).
+	/// directory of the host process). <paramref name="defaultTimeout"/>, when set, kills any command
+	/// that runs longer than it; individual calls can override it via the <see cref="TimeSpan"/>
+	/// overloads of <see cref="RunAsync(IEnumerable{string}, TimeSpan, CancellationToken)"/> /
+	/// <see cref="RunRawAsync(IEnumerable{string}, TimeSpan, CancellationToken)"/>.
 	/// </summary>
-	public JujutsuCli(string? workingDirectory = null, string executable = "jj")
+	public JujutsuCli(string? workingDirectory = null, string executable = "jj", TimeSpan? defaultTimeout = null)
 	{
 		ArgumentException.ThrowIfNullOrEmpty(executable);
+		ValidateTimeout(defaultTimeout, nameof(defaultTimeout));
 		Executable = executable;
 		WorkingDirectory = workingDirectory;
+		_defaultTimeout = defaultTimeout;
 		_executor = new ProcessKitCommandExecutor(executable, workingDirectory);
 	}
 
-	internal JujutsuCli(ICommandExecutor executor, string executable = "jj", string? workingDirectory = null)
+	internal JujutsuCli(ICommandExecutor executor, string executable = "jj", string? workingDirectory = null, TimeSpan? defaultTimeout = null)
 	{
 		_executor = executor;
 		Executable = executable;
 		WorkingDirectory = workingDirectory;
+		_defaultTimeout = defaultTimeout;
 	}
 
 	/// <summary>The underlying executable this client invokes.</summary>
@@ -46,30 +53,61 @@ public sealed class JujutsuCli
 	/// <summary>The process working directory, or <c>null</c> to inherit the host process's.</summary>
 	public string? WorkingDirectory { get; }
 
-	/// <summary>
-	/// Runs <c>jj</c> with the given arguments and returns the full result without throwing on a
-	/// non-zero exit code. Use this for commands not covered by a typed wrapper.
-	/// </summary>
-	public Task<JjCommandResult> RunRawAsync(IEnumerable<string> arguments, CancellationToken cancellationToken = default)
-	{
-		ArgumentNullException.ThrowIfNull(arguments);
-		return _executor.RunAsync(AsList(arguments), cancellationToken);
-	}
+	/// <summary>The timeout applied to commands that do not specify their own, or <c>null</c> for none.</summary>
+	public TimeSpan? DefaultTimeout => _defaultTimeout;
 
 	/// <summary>
-	/// Runs <c>jj</c> with the given arguments, throwing <see cref="JujutsuCliException"/> on a
-	/// non-zero exit code, and returns the trimmed stdout on success.
+	/// Runs <c>jj</c> with the given arguments (using <see cref="DefaultTimeout"/>) and returns the
+	/// full result without throwing on a non-zero exit code. Use this for commands not covered by a
+	/// typed wrapper.
 	/// </summary>
-	public async Task<string> RunAsync(IEnumerable<string> arguments, CancellationToken cancellationToken = default)
+	public Task<JjCommandResult> RunRawAsync(IEnumerable<string> arguments, CancellationToken cancellationToken = default)
+		=> RunRawCore(arguments, _defaultTimeout, cancellationToken);
+
+	/// <summary>
+	/// Runs <c>jj</c> with the given arguments, killing it after <paramref name="timeout"/>, and
+	/// returns the full result without throwing on a non-zero exit code (a timeout is reported via
+	/// <see cref="JjCommandResult.WasTimedOut"/>).
+	/// </summary>
+	public Task<JjCommandResult> RunRawAsync(IEnumerable<string> arguments, TimeSpan timeout, CancellationToken cancellationToken = default)
+		=> RunRawCore(arguments, timeout, cancellationToken);
+
+	/// <summary>
+	/// Runs <c>jj</c> with the given arguments (using <see cref="DefaultTimeout"/>), throwing
+	/// <see cref="JujutsuCliException"/> on a non-zero exit code, and returns the trimmed stdout on success.
+	/// </summary>
+	public Task<string> RunAsync(IEnumerable<string> arguments, CancellationToken cancellationToken = default)
+		=> RunCore(arguments, _defaultTimeout, cancellationToken);
+
+	/// <summary>
+	/// Runs <c>jj</c> with the given arguments, killing it after <paramref name="timeout"/>, throwing
+	/// <see cref="JujutsuCliException"/> on a non-zero exit (including a timeout, where
+	/// <see cref="JujutsuCliException.TimedOut"/> is <c>true</c>), and returns the trimmed stdout on success.
+	/// </summary>
+	public Task<string> RunAsync(IEnumerable<string> arguments, TimeSpan timeout, CancellationToken cancellationToken = default)
+		=> RunCore(arguments, timeout, cancellationToken);
+
+	private Task<JjCommandResult> RunRawCore(IEnumerable<string> arguments, TimeSpan? timeout, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(arguments);
+		ValidateTimeout(timeout, nameof(timeout));
+		return _executor.RunAsync(AsList(arguments), timeout, cancellationToken);
+	}
+
+	private async Task<string> RunCore(IEnumerable<string> arguments, TimeSpan? timeout, CancellationToken cancellationToken)
+	{
+		ArgumentNullException.ThrowIfNull(arguments);
+		ValidateTimeout(timeout, nameof(timeout));
 		var args = AsList(arguments);
-		var result = await _executor.RunAsync(args, cancellationToken).ConfigureAwait(false);
+		var result = await _executor.RunAsync(args, timeout, cancellationToken).ConfigureAwait(false);
 		if (!result.IsSuccess)
 		{
 			var joined = string.Join(' ', args);
-			throw new JujutsuCliException(result.ExitCode, result.StdErr, joined,
-				$"`{Executable} {joined}` exited with code {result.ExitCode}. {result.StdErr.Trim()}");
+			var reason = result.WasTimedOut
+				? $"timed out after {timeout?.TotalSeconds.ToString(CultureInfo.InvariantCulture)}s"
+				: $"exited with code {result.ExitCode}";
+			throw new JujutsuCliException(result.ExitCode, result.StdErr, joined, result.WasTimedOut,
+				$"`{Executable} {joined}` {reason}. {Truncate(result.StdErr.Trim())}");
 		}
 
 		return result.StdOut.Trim();
@@ -186,4 +224,16 @@ public sealed class JujutsuCli
 
 	private static IReadOnlyList<string> AsList(IEnumerable<string> arguments)
 		=> arguments as IReadOnlyList<string> ?? arguments.ToList();
+
+	private static string Truncate(string text)
+	{
+		const int max = 4096;
+		return text.Length > max ? string.Concat(text.AsSpan(0, max), "...[truncated]") : text;
+	}
+
+	private static void ValidateTimeout(TimeSpan? timeout, string parameterName)
+	{
+		if (timeout is { } value && value <= TimeSpan.Zero)
+			throw new ArgumentOutOfRangeException(parameterName, value, "Timeout must be positive.");
+	}
 }

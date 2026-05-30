@@ -11,4 +11,11 @@ public readonly record struct GitCommandResult(string StdOut, string StdErr, int
 {
 	/// <summary><c>true</c> when <see cref="ExitCode"/> is zero.</summary>
 	public bool IsSuccess => ExitCode == 0;
+
+	/// <summary>
+	/// <c>true</c> when the process was killed because the configured timeout elapsed. The
+	/// <see cref="ExitCode"/> in that case is the killed process's code and <see cref="IsSuccess"/>
+	/// is normally <c>false</c>.
+	/// </summary>
+	public bool WasTimedOut { get; init; }
 }

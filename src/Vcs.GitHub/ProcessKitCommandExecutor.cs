@@ -2,11 +2,11 @@ using System.ComponentModel;
 using System.Diagnostics;
 using ProcessKit;
 
-namespace Vcs.Git;
+namespace Vcs.GitHub;
 
 /// <summary>
 /// Default <see cref="ICommandExecutor"/> backed by ProcessKit. Keeps ProcessKit out of the public
-/// surface — callers see only <see cref="GitCommandResult"/>.
+/// surface — callers see only <see cref="GitHubCommandResult"/>.
 /// </summary>
 internal sealed class ProcessKitCommandExecutor : ICommandExecutor
 {
@@ -21,7 +21,7 @@ internal sealed class ProcessKitCommandExecutor : ICommandExecutor
 		_runner = runner ?? ProcessRunner.Default;
 	}
 
-	public async Task<GitCommandResult> RunAsync(IReadOnlyList<string> arguments, TimeSpan? timeout, CancellationToken cancellationToken)
+	public async Task<GitHubCommandResult> RunAsync(IReadOnlyList<string> arguments, TimeSpan? timeout, CancellationToken cancellationToken)
 	{
 		var startInfo = new ProcessStartInfo(_executable);
 		foreach (var argument in arguments)
@@ -41,10 +41,10 @@ internal sealed class ProcessKitCommandExecutor : ICommandExecutor
 			// The process could not be started at all (executable missing or not executable). Surface
 			// it as the library's own exception instead of leaking the raw Win32Exception to callers.
 			var joined = string.Join(' ', arguments);
-			throw new GitCliException(-1, ex.Message, joined, false,
+			throw new GitHubCliException(-1, ex.Message, joined, false,
 				$"Could not start `{_executable}`: {ex.Message}");
 		}
 
-		return new GitCommandResult(result.StdOut, result.StdErr, result.ExitCode) { WasTimedOut = result.WasTimedOut };
+		return new GitHubCommandResult(result.StdOut, result.StdErr, result.ExitCode) { WasTimedOut = result.WasTimedOut };
 	}
 }

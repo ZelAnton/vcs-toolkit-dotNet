@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using ProcessKit;
 
@@ -20,7 +21,7 @@ internal sealed class ProcessKitCommandExecutor : ICommandExecutor
 		_runner = runner ?? ProcessRunner.Default;
 	}
 
-	public async Task<JjCommandResult> RunAsync(IReadOnlyList<string> arguments, CancellationToken cancellationToken)
+	public async Task<JjCommandResult> RunAsync(IReadOnlyList<string> arguments, TimeSpan? timeout, CancellationToken cancellationToken)
 	{
 		var startInfo = new ProcessStartInfo(_executable);
 		foreach (var argument in arguments)
@@ -28,7 +29,22 @@ internal sealed class ProcessKitCommandExecutor : ICommandExecutor
 		if (_workingDirectory is not null)
 			startInfo.WorkingDirectory = _workingDirectory;
 
-		var result = await _runner.GetFullOutputAsync(startInfo, cancellationToken: cancellationToken).ConfigureAwait(false);
-		return new JjCommandResult(result.StdOut, result.StdErr, result.ExitCode);
+		var options = timeout is { } value ? new ProcessRunOptions { Timeout = value } : null;
+
+		ProcessResult<string> result;
+		try
+		{
+			result = await _runner.GetFullOutputAsync(startInfo, options, cancellationToken).ConfigureAwait(false);
+		}
+		catch (Win32Exception ex)
+		{
+			// The process could not be started at all (executable missing or not executable). Surface
+			// it as the library's own exception instead of leaking the raw Win32Exception to callers.
+			var joined = string.Join(' ', arguments);
+			throw new JujutsuCliException(-1, ex.Message, joined, false,
+				$"Could not start `{_executable}`: {ex.Message}");
+		}
+
+		return new JjCommandResult(result.StdOut, result.StdErr, result.ExitCode) { WasTimedOut = result.WasTimedOut };
 	}
 }

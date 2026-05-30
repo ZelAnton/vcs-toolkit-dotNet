@@ -6,5 +6,5 @@ namespace Vcs.Jujutsu;
 /// </summary>
 internal interface ICommandExecutor
 {
-	Task<JjCommandResult> RunAsync(IReadOnlyList<string> arguments, CancellationToken cancellationToken);
+	Task<JjCommandResult> RunAsync(IReadOnlyList<string> arguments, TimeSpan? timeout, CancellationToken cancellationToken);
 }

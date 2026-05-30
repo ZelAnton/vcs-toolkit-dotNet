@@ -31,6 +31,16 @@ escape hatch (`RunAsync` throws on a non-zero exit; `RunRawAsync` returns the
 full result without throwing). Process execution is handled by
 [ProcessKit](https://www.nuget.org/packages/ProcessKit).
 
+Pass a `defaultTimeout` to the constructor to kill any command that runs too
+long, or override it per call via the `TimeSpan` overloads of `RunAsync` /
+`RunRawAsync`. On a timeout `RunAsync` throws with `TimedOut == true`, and
+`RunRawAsync` returns a result with `WasTimedOut == true`:
+
+```csharp
+var git = new GitCli(workingDirectory: ".", defaultTimeout: TimeSpan.FromSeconds(30));
+var slowFetch = await git.RunRawAsync(["fetch", "--all"], TimeSpan.FromMinutes(5));
+```
+
 ### `Vcs.Git`
 
 ```csharp
@@ -74,7 +84,29 @@ await jj.BookmarkSetAsync("main", revision: "@-");
 await jj.GitPushAsync("main");
 ```
 
-The `Vcs.GitHub` (`GitHubCli`) client follows the same shape.
+### `Vcs.GitHub`
+
+```csharp
+using Vcs.GitHub;
+
+var gh = new GitHubCli(workingDirectory: "/path/to/repo");
+
+if (!await gh.IsAuthenticatedAsync())
+    throw new InvalidOperationException("Run `gh auth login` first.");
+
+var repo = await gh.RepoViewAsync();                 // gh repo view --json ...
+Console.WriteLine($"{repo.Owner}/{repo.Name} (default: {repo.DefaultBranch})");
+
+foreach (var pr in await gh.PrListAsync(state: "open"))
+    Console.WriteLine($"#{pr.Number} {pr.Title} [{pr.State}]");
+
+string url = await gh.PrCreateAsync("My title", "My body", baseBranch: "main");
+
+// Raw API escape hatch:
+string json = await gh.ApiAsync("repos/OWNER/REPO/labels");
+```
+
+Requires an authenticated `gh` session (`gh auth login`).
 
 ## Repository layout
 

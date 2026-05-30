@@ -7,12 +7,13 @@ namespace Vcs.Jujutsu;
 /// </summary>
 public sealed class JujutsuCliException : Exception
 {
-	internal JujutsuCliException(int exitCode, string stdErr, string arguments, string message)
+	internal JujutsuCliException(int exitCode, string stdErr, string arguments, bool timedOut, string message)
 		: base(message)
 	{
 		ExitCode = exitCode;
 		StdErr = stdErr;
 		Arguments = arguments;
+		TimedOut = timedOut;
 	}
 
 	/// <summary>The raw process exit code.</summary>
@@ -23,4 +24,7 @@ public sealed class JujutsuCliException : Exception
 
 	/// <summary>The space-joined arguments passed to <c>jj</c>.</summary>
 	public string Arguments { get; }
+
+	/// <summary><c>true</c> when the command was killed because its timeout elapsed.</summary>
+	public bool TimedOut { get; }
 }

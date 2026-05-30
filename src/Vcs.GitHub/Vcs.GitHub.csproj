@@ -9,4 +9,12 @@
 		<PackageTags>github;gh;cli;automation;process</PackageTags>
 	</PropertyGroup>
 
+	<ItemGroup>
+		<PackageReference Include="ProcessKit" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<InternalsVisibleTo Include="Vcs.GitHub.Tests" />
+	</ItemGroup>
+
 </Project>

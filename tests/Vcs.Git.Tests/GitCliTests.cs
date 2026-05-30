@@ -12,9 +12,12 @@ public class GitCliTests
 
 		public List<IReadOnlyList<string>> Calls { get; } = [];
 
-		public Task<GitCommandResult> RunAsync(IReadOnlyList<string> arguments, CancellationToken cancellationToken)
+		public List<TimeSpan?> Timeouts { get; } = [];
+
+		public Task<GitCommandResult> RunAsync(IReadOnlyList<string> arguments, TimeSpan? timeout, CancellationToken cancellationToken)
 		{
 			Calls.Add(arguments);
+			Timeouts.Add(timeout);
 			var result = _results.Count > 0 ? _results.Dequeue() : new GitCommandResult(string.Empty, string.Empty, 0);
 			return Task.FromResult(result);
 		}
@@ -107,7 +110,7 @@ public class GitCliTests
 
 		await git.StageAsync(["a.cs", "b.cs"]);
 
-		Assert.That(fake.Calls[0], Is.EqualTo(new[] { "add", "a.cs", "b.cs" }));
+		Assert.That(fake.Calls[0], Is.EqualTo(new[] { "add", "--", "a.cs", "b.cs" }));
 	}
 
 	[Test]
@@ -163,6 +166,77 @@ public class GitCliTests
 
 		Assert.That(await git.CurrentBranchAsync(), Is.EqualTo("main"));
 		Assert.That(fake.Calls[0], Is.EqualTo(new[] { "branch", "--show-current" }));
+	}
+
+	[Test]
+	public async Task DefaultTimeout_IsAppliedToCommands()
+	{
+		var fake = new FakeExecutor(Ok("git version 2.45.0"));
+		var git = new GitCli(fake, defaultTimeout: TimeSpan.FromSeconds(7));
+
+		await git.VersionAsync();
+
+		Assert.That(git.DefaultTimeout, Is.EqualTo(TimeSpan.FromSeconds(7)));
+		Assert.That(fake.Timeouts[0], Is.EqualTo(TimeSpan.FromSeconds(7)));
+	}
+
+	[Test]
+	public async Task PerCallTimeout_OverridesDefault()
+	{
+		var fake = new FakeExecutor(Ok(string.Empty));
+		var git = new GitCli(fake, defaultTimeout: TimeSpan.FromSeconds(7));
+
+		await git.RunAsync(["status"], TimeSpan.FromSeconds(2));
+
+		Assert.That(fake.Timeouts[0], Is.EqualTo(TimeSpan.FromSeconds(2)));
+	}
+
+	[Test]
+	public void RunAsync_Timeout_ThrowsWithTimedOutFlag()
+	{
+		var fake = new FakeExecutor(new GitCommandResult(string.Empty, string.Empty, -1) { WasTimedOut = true });
+		var git = new GitCli(fake);
+
+		var ex = Assert.ThrowsAsync<GitCliException>(async () => await git.RunAsync(["fetch"], TimeSpan.FromSeconds(1)));
+		Assert.Multiple(() =>
+		{
+			Assert.That(ex!.TimedOut, Is.True);
+			Assert.That(ex.Message, Does.Contain("timed out"));
+		});
+	}
+
+	[Test]
+	public async Task RunRawAsync_Timeout_DoesNotThrow_AndReportsFlag()
+	{
+		var fake = new FakeExecutor(new GitCommandResult(string.Empty, string.Empty, -1) { WasTimedOut = true });
+		var git = new GitCli(fake);
+
+		var result = await git.RunRawAsync(["fetch"], TimeSpan.FromSeconds(1));
+
+		Assert.That(result.WasTimedOut, Is.True);
+	}
+
+	[Test]
+	public void Constructor_NonPositiveTimeout_Throws()
+	{
+		Assert.Throws<ArgumentOutOfRangeException>(() => new GitCli(defaultTimeout: TimeSpan.Zero));
+	}
+
+	[Test]
+	public void RunAsync_ExecutableNotFound_ThrowsCliException()
+	{
+		var git = new GitCli(executable: "vcs-toolkit-no-such-binary-zzz");
+
+		var ex = Assert.ThrowsAsync<GitCliException>(async () => await git.RunAsync(["status"]));
+		Assert.That(ex!.Message, Does.Contain("Could not start"));
+	}
+
+	[Test]
+	public void RunRawAsync_ExecutableNotFound_ThrowsCliException()
+	{
+		var git = new GitCli(executable: "vcs-toolkit-no-such-binary-zzz");
+
+		Assert.ThrowsAsync<GitCliException>(async () => await git.RunRawAsync(["status"]));
 	}
 
 	// Exercises the real `git` binary; excluded from the default CI run.

@@ -12,9 +12,12 @@ public class JujutsuCliTests
 
 		public List<IReadOnlyList<string>> Calls { get; } = [];
 
-		public Task<JjCommandResult> RunAsync(IReadOnlyList<string> arguments, CancellationToken cancellationToken)
+		public List<TimeSpan?> Timeouts { get; } = [];
+
+		public Task<JjCommandResult> RunAsync(IReadOnlyList<string> arguments, TimeSpan? timeout, CancellationToken cancellationToken)
 		{
 			Calls.Add(arguments);
+			Timeouts.Add(timeout);
 			var result = _results.Count > 0 ? _results.Dequeue() : new JjCommandResult(string.Empty, string.Empty, 0);
 			return Task.FromResult(result);
 		}
@@ -163,6 +166,58 @@ public class JujutsuCliTests
 		await jj.GitFetchAsync();
 
 		Assert.That(fake.Calls[0], Is.EqualTo(new[] { "git", "fetch" }));
+	}
+
+	[Test]
+	public async Task DefaultTimeout_IsAppliedToCommands()
+	{
+		var fake = new FakeExecutor(Ok("jj 0.38.0"));
+		var jj = new JujutsuCli(fake, defaultTimeout: TimeSpan.FromSeconds(9));
+
+		await jj.VersionAsync();
+
+		Assert.That(jj.DefaultTimeout, Is.EqualTo(TimeSpan.FromSeconds(9)));
+		Assert.That(fake.Timeouts[0], Is.EqualTo(TimeSpan.FromSeconds(9)));
+	}
+
+	[Test]
+	public async Task PerCallTimeout_OverridesDefault()
+	{
+		var fake = new FakeExecutor(Ok(string.Empty));
+		var jj = new JujutsuCli(fake, defaultTimeout: TimeSpan.FromSeconds(9));
+
+		await jj.RunAsync(["status"], TimeSpan.FromSeconds(3));
+
+		Assert.That(fake.Timeouts[0], Is.EqualTo(TimeSpan.FromSeconds(3)));
+	}
+
+	[Test]
+	public void RunAsync_Timeout_ThrowsWithTimedOutFlag()
+	{
+		var fake = new FakeExecutor(new JjCommandResult(string.Empty, string.Empty, -1) { WasTimedOut = true });
+		var jj = new JujutsuCli(fake);
+
+		var ex = Assert.ThrowsAsync<JujutsuCliException>(async () => await jj.RunAsync(["git", "fetch"], TimeSpan.FromSeconds(1)));
+		Assert.Multiple(() =>
+		{
+			Assert.That(ex!.TimedOut, Is.True);
+			Assert.That(ex.Message, Does.Contain("timed out"));
+		});
+	}
+
+	[Test]
+	public void Constructor_NonPositiveTimeout_Throws()
+	{
+		Assert.Throws<ArgumentOutOfRangeException>(() => new JujutsuCli(defaultTimeout: TimeSpan.FromSeconds(-1)));
+	}
+
+	[Test]
+	public void RunAsync_ExecutableNotFound_ThrowsCliException()
+	{
+		var jj = new JujutsuCli(executable: "vcs-toolkit-no-such-binary-zzz");
+
+		var ex = Assert.ThrowsAsync<JujutsuCliException>(async () => await jj.RunAsync(["status"]));
+		Assert.That(ex!.Message, Does.Contain("Could not start"));
 	}
 
 	// Exercises the real `jj` binary; excluded from the default CI run.
