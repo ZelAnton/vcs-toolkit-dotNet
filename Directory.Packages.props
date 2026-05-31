@@ -12,7 +12,7 @@
 		SourceLink for packaging) and can be extended as the libraries grow.
 	-->
 	<ItemGroup>
-		<PackageVersion Include="ProcessKit" Version="1.3.1" />
+		<PackageVersion Include="ProcessKit" Version="1.3.2" />
 		<PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.5.1" />
 		<PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />
 		<PackageVersion Include="NUnit" Version="4.6.0" />

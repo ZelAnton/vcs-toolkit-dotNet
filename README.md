@@ -170,9 +170,9 @@ These rules are shared by all three clients.
   command is built on it.
 - **`RunRawAsync`** is the lenient path: it **never throws** on a non-zero exit and
   returns a `*CommandResult` (`StdOut`, `StdErr`, `ExitCode`, `IsSuccess`, `WasTimedOut`)
-  with stdout **untrimmed** — use it to inspect the full output or handle a failing exit
-  code yourself. Note `StdOut` is captured line-by-line (see [Encoding & line endings](#encoding--line-endings)),
-  so it is not a byte-for-byte copy of the process's stdout.
+  with stdout captured **faithfully and untrimmed** — the process's exact output, with its
+  line endings and any trailing newline preserved. Use it to inspect the full output or
+  handle a failing exit code yourself.
 
 ### Timeouts
 
@@ -215,11 +215,9 @@ string sha = await git.RunAsync(["hash-object", "--stdin"], standardInput: "blob
 Output is decoded as UTF-8. `Vcs.Git.StatusAsync` runs with `core.quotePath=false`, so
 non-ASCII paths come back verbatim rather than C-quoted/octal-escaped.
 
-Captured stdout is read line-by-line and re-joined with the host newline
-(`Environment.NewLine`), so the original line-ending style (e.g. `\n` on Unix) and any
-trailing newline are **not** preserved — `StdOut` is not a byte-for-byte copy of the
-process's output. This is invisible to the typed commands (their parsers are
-newline-agnostic); it only matters if you compare raw `RunRawAsync` output byte-for-byte.
+`RunRawAsync` captures stdout faithfully: the process's exact output is preserved, including
+its original line endings and any trailing newline. The typed commands trim their output and
+parse it newline-agnostically, so line-ending style never affects them.
 
 ### Thread-safety & reuse
 
