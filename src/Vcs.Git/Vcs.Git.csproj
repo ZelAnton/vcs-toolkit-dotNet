@@ -15,6 +15,7 @@
 
 	<ItemGroup>
 		<InternalsVisibleTo Include="Vcs.Git.Tests" />
+		<InternalsVisibleTo Include="Vcs.Aot.SmokeTest" />
 	</ItemGroup>
 
 </Project>

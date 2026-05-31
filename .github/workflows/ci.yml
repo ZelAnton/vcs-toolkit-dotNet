@@ -32,3 +32,32 @@ jobs:
 
       - name: Test
         run: dotnet test Vcs.slnx --no-build --configuration Release
+
+  aot-smoke:
+    name: Native AOT smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install Native AOT prerequisites
+        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
+
+      - name: Restore
+        run: dotnet restore Vcs.slnx
+
+      # Build the solution first: cross-project refs use Reference + AssemblySearchPaths (not
+      # ProjectReference), so publishing the smoke test alone would not build the libraries.
+      - name: Build
+        run: dotnet build Vcs.slnx --no-restore --configuration Release
+
+      # No --no-restore here: AOT publish with -r pulls the linux-x64 ILCompiler runtime pack,
+      # which the earlier RID-agnostic `dotnet restore` does not fetch.
+      - name: Publish AOT smoke test
+        run: dotnet publish tests/Vcs.Aot.SmokeTest/Vcs.Aot.SmokeTest.csproj --configuration Release -r linux-x64 -o aot-out
+
+      - name: Run AOT smoke test
+        run: ./aot-out/Vcs.Aot.SmokeTest

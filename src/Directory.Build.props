@@ -6,6 +6,11 @@
 	<Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
 
 	<PropertyGroup>
+		<!-- Mark the libraries Native-AOT/trim-compatible. On net8+ this enables the trim, AOT and
+		     single-file analyzers; with TreatWarningsAsErrors any AOT/trim-unsafe code fails the build,
+		     and it stamps [AssemblyMetadata("IsTrimmable","True")] so consumers get proper analysis. -->
+		<IsAotCompatible>true</IsAotCompatible>
+
 		<Authors>Anton Zhelezniakou</Authors>
 		<Copyright>Copyright (c) 2026 Anton Zhelezniakou</Copyright>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>

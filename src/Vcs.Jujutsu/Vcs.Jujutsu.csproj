@@ -15,6 +15,7 @@
 
 	<ItemGroup>
 		<InternalsVisibleTo Include="Vcs.Jujutsu.Tests" />
+		<InternalsVisibleTo Include="Vcs.Aot.SmokeTest" />
 	</ItemGroup>
 
 </Project>

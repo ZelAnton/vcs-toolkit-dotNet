@@ -9,6 +9,11 @@
 		<Project Path="tests/Vcs.GitHub.Tests/Vcs.GitHub.Tests.csproj">
 			<BuildDependency Project="src/Vcs.GitHub/Vcs.GitHub.csproj" />
 		</Project>
+		<Project Path="tests/Vcs.Aot.SmokeTest/Vcs.Aot.SmokeTest.csproj">
+			<BuildDependency Project="src/Vcs.Git/Vcs.Git.csproj" />
+			<BuildDependency Project="src/Vcs.Jujutsu/Vcs.Jujutsu.csproj" />
+			<BuildDependency Project="src/Vcs.GitHub/Vcs.GitHub.csproj" />
+		</Project>
 	</Folder>
 	<Project Path="src/Vcs.Git/Vcs.Git.csproj" />
 	<Project Path="src/Vcs.Jujutsu/Vcs.Jujutsu.csproj" />

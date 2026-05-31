@@ -86,6 +86,8 @@
 	- `Test summary: total: ..., failed: 0, succeeded: ...`
 - A successful test run must execute the discovered tests, not only complete MSBuild targets.
 - Because project-to-project references use `Reference` instead of `ProjectReference`, build ordering must come from `Vcs.slnx`.
+- The libraries are `IsAotCompatible` (set in `src/Directory.Build.props`); keep them AOT/trim-safe — no reflection, dynamic code, or reflection-based serialization. The trim/AOT analyzers run on every build and, with warnings-as-errors, fail on unsafe code.
+- `tests/Vcs.Aot.SmokeTest` is a Native AOT smoke test (console `Exe`, `PublishAot`, `IsPackable=false`, not an NUnit project). CI's `aot-smoke` job native-compiles and runs it on ubuntu; locally use `scripts/test-aot.ps1`. Keep it passing when changing library behaviour or output parsing.
 
 ## Linux Testing (local, from Windows)
 

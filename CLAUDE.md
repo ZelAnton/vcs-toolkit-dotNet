@@ -18,7 +18,17 @@ dotnet test Vcs.slnx --filter "FullyQualifiedName~TestMethodName"
 # Run tests inside a Linux container (requires Rancher Desktop or Docker Desktop, PowerShell 7+)
 pwsh scripts/test-linux.ps1
 pwsh scripts/test-linux.ps1 -Filter "FullyQualifiedName~TestMethodName"
+
+# Native AOT smoke test: native-compile and run tests/Vcs.Aot.SmokeTest against all three libraries.
+# (Requires the platform C toolchain; CI runs it on ubuntu. See the script header for prerequisites.)
+pwsh scripts/test-aot.ps1
 ```
+
+The libraries are marked `IsAotCompatible` in `src/Directory.Build.props`, which enables the
+trim/AOT analyzers — with warnings-as-errors, AOT/trim-unsafe code fails the build. The
+`tests/Vcs.Aot.SmokeTest` console project (not an NUnit project; `IsPackable=false`) is
+native-compiled (`PublishAot`) and run in CI's `aot-smoke` job to verify the parsing and process
+paths work under Native AOT. It reaches the internal `ICommandExecutor` seam via `InternalsVisibleTo`.
 
 ## Architecture
 

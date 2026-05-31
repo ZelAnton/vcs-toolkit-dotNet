@@ -219,6 +219,16 @@ non-ASCII paths come back verbatim rather than C-quoted/octal-escaped.
 A client holds no per-call mutable state, so a single instance is safe to reuse across
 concurrent calls. Each call spawns its own child process.
 
+### Native AOT & trimming
+
+All three libraries are annotated `IsAotCompatible` (which also marks them trimmable) and
+build clean under the trim/AOT analyzers, so consumers can `PublishTrimmed` or `PublishAot`
+without warnings. The code uses no reflection, dynamic code, or reflection-based
+serialization — `gh --json` output is read with `System.Text.Json`'s `JsonDocument`, and dates
+are parsed with `CultureInfo.InvariantCulture`, so the libraries also work under
+`InvariantGlobalization`. A Native AOT smoke test (`tests/Vcs.Aot.SmokeTest`) native-compiles
+and runs against all three libraries in CI to keep this guarantee honest.
+
 ## Dependency injection & mocking
 
 Each client implements an interface exposing its full command surface —
@@ -271,6 +281,9 @@ dotnet test Vcs.slnx --filter "FullyQualifiedName~IntegrationTests"
 
 To exercise the Linux/Unix path from Windows, see
 [docs/linux-testing.md](docs/linux-testing.md) (`pwsh scripts/test-linux.ps1`).
+
+To verify Native AOT locally, `pwsh scripts/test-aot.ps1` publishes and runs the AOT smoke
+test (requires the platform C toolchain — see the script header).
 
 Cross-project references use `Reference` + `AssemblySearchPaths` (not
 `ProjectReference`); build ordering is declared via `BuildDependency` entries in

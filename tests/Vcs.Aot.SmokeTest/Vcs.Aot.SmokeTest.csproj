@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<!-- Native AOT smoke test: native-compiles and runs against all three libraries to prove the
+	     parsing (System.Text.Json, DateTimeOffset.Parse) and process-plumbing paths work under AOT.
+	     Not packed and not an NUnit project; driven by `dotnet publish` + run (see ci.yml aot-smoke job). -->
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<IsPackable>false</IsPackable>
+		<PublishAot>true</PublishAot>
+		<InvariantGlobalization>true</InvariantGlobalization>
+		<NoWarn>$(NoWarn);CA1707;CA1861;CA1859</NoWarn>
+		<AssemblySearchPaths>$(AssemblySearchPaths);$(GitProjectDir)bin\$(Configuration)\$(TargetFramework);$(JujutsuProjectDir)bin\$(Configuration)\$(TargetFramework);$(GitHubProjectDir)bin\$(Configuration)\$(TargetFramework)</AssemblySearchPaths>
+	</PropertyGroup>
+
+	<!-- ProcessKit is a transitive dependency of each library; assembly `Reference`s don't flow NuGet
+	     dependencies, so declare it explicitly (same as the *.Tests projects do). -->
+	<ItemGroup>
+		<PackageReference Include="ProcessKit" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Reference Include="Vcs.Git" />
+		<Reference Include="Vcs.Jujutsu" />
+		<Reference Include="Vcs.GitHub" />
+	</ItemGroup>
+
+</Project>

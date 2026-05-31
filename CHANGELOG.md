@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - All three packages: public constructors on `GitCliException` / `JujutsuCliException` / `GitHubCliException` (`(string message, int exitCode = 0, string stdErr = "", string arguments = "", bool timedOut = false)`) so consumers can construct them in tests — e.g. to make a mocked client throw.
 - All three packages: an `environment` constructor argument (snapshotted and exposed as the `Environment` property) that applies extra environment variables to every command, plus `standardInput` overloads of `RunAsync`/`RunRawAsync` that pipe a string to the process's stdin.
 - `Vcs.Git`: `BranchesAsync` returning `GitBranch` values (with `IsCurrent`) and `RevParseAsync` to resolve a revision to its full hash.
+- All three packages: marked `IsAotCompatible` (and trimmable), so consumers can `PublishTrimmed`/`PublishAot` without warnings; a Native AOT smoke test (`tests/Vcs.Aot.SmokeTest`) native-compiles and runs the parsing and process paths in CI to enforce this.
 
 ### Changed
 - All three clients: a missing or unstartable executable now throws the library's own `*CliException` (`Could not start ...`) instead of leaking a raw `System.ComponentModel.Win32Exception`; the original is preserved as `InnerException`.
