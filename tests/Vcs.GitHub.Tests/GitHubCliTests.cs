@@ -428,6 +428,32 @@ public class GitHubCliTests
 	}
 
 	[Test]
+	public void PrListAsync_MalformedJson_ThrowsGitHubCliException()
+	{
+		var gh = new GitHubCli(new FakeExecutor(Ok("not json")));
+
+		var ex = Assert.ThrowsAsync<GitHubCliException>(async () => await gh.PrListAsync());
+		Assert.That(ex!.Message, Does.Contain("Could not parse"));
+	}
+
+	[Test]
+	public void PrListAsync_JsonObjectInsteadOfArray_ThrowsGitHubCliException()
+	{
+		var gh = new GitHubCli(new FakeExecutor(Ok("{}")));
+
+		var ex = Assert.ThrowsAsync<GitHubCliException>(async () => await gh.PrListAsync());
+		Assert.That(ex!.Message, Does.Contain("expected a JSON array"));
+	}
+
+	[Test]
+	public void RepoViewAsync_MalformedJson_ThrowsGitHubCliException()
+	{
+		var gh = new GitHubCli(new FakeExecutor(Ok("{ broken")));
+
+		Assert.ThrowsAsync<GitHubCliException>(async () => await gh.RepoViewAsync());
+	}
+
+	[Test]
 	public void GitHubOutputParser_ParseRepository_HandlesNullFields()
 	{
 		const string json = """{ "name": "r", "owner": { "login": "o" }, "description": null, "url": "u", "isPrivate": true, "defaultBranchRef": null }""";

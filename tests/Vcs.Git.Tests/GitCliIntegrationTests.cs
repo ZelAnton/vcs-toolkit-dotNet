@@ -65,6 +65,8 @@ public class GitCliIntegrationTests
 		// stdin: `git hash-object --stdin` reads stdin and prints the object's SHA-1 — fully deterministic.
 		var git = new GitCli(workingDirectory: _repo);
 		await git.InitAsync();
+		// Disable commit signing so the commit below succeeds on a host whose global config sets commit.gpgsign=true.
+		await git.RunAsync(["config", "commit.gpgsign", "false"]);
 		var hash = await git.RunAsync(["hash-object", "--stdin"], "hello\n");
 		Assert.That(hash, Is.EqualTo("ce013625030ba8dba906f756967f9e9ca394464a"), "SHA-1 of \"hello\\n\"");
 
@@ -83,6 +85,20 @@ public class GitCliIntegrationTests
 
 		var commits = await gitWithEnv.LogAsync(maxCount: 1);
 		Assert.That(commits[0].Author, Is.EqualTo("Env Author"));
+	}
+
+	[Test]
+	public async Task StatusAsync_NonAsciiPath_ReturnedVerbatim()
+	{
+		var git = new GitCli(workingDirectory: _repo);
+		await git.InitAsync();
+
+		const string name = "café-naïve-日本語.txt";
+		await File.WriteAllTextAsync(Path.Combine(_repo, name), "x");
+
+		var entries = await git.StatusAsync();
+		Assert.That(entries.Any(e => e.Path == name), Is.True,
+			"non-ASCII path must come back verbatim, not C-quoted/octal-escaped");
 	}
 
 	[Test]

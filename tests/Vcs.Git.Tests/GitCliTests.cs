@@ -86,7 +86,7 @@ public class GitCliTests
 
 		var entries = await git.StatusAsync();
 
-		Assert.That(fake.Calls[0], Is.EqualTo(new[] { "status", "--porcelain=v1" }));
+		Assert.That(fake.Calls[0], Is.EqualTo(new[] { "-c", "core.quotePath=false", "status", "--porcelain=v1" }));
 		Assert.That(entries, Has.Count.EqualTo(4));
 		Assert.Multiple(() =>
 		{

@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Vcs.GitHub`: replaced the placeholder `GitHubCli.ExecutableName` property with the real command API (`GitHubCli.Executable`).
 
 ### Fixed
--
+- `Vcs.Git`: `StatusAsync` now returns non-ASCII paths verbatim (runs `git -c core.quotePath=false status`); previously such paths came back C-quoted and octal-escaped (e.g. `"caf\303\251.txt"`).
+- `Vcs.GitHub`: malformed or unexpected `gh --json` output now throws `GitHubCliException` (with the original `JsonException` as `InnerException`) instead of leaking a raw `System.Text.Json.JsonException`.
 
 [Unreleased]: https://github.com/ZelAnton/vcs-toolkit-dotNet/commits/main

@@ -155,7 +155,9 @@ public sealed class GitCli : IGitCli
 	/// </summary>
 	public async Task<IReadOnlyList<GitStatusEntry>> StatusAsync(CancellationToken cancellationToken = default)
 	{
-		var output = await RunAsync(["status", "--porcelain=v1"], cancellationToken).ConfigureAwait(false);
+		// `-c core.quotePath=false` keeps non-ASCII paths verbatim (UTF-8); with the default `true`
+		// git C-quotes them (e.g. "caf\303\251.txt"), which would surface as a corrupted Path.
+		var output = await RunAsync(["-c", "core.quotePath=false", "status", "--porcelain=v1"], cancellationToken).ConfigureAwait(false);
 		return GitOutputParser.ParseStatus(output);
 	}
 

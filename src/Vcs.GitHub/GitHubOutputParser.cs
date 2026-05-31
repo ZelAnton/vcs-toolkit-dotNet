@@ -11,7 +11,10 @@ internal static class GitHubOutputParser
 	/// <summary>Parses a <c>gh pr list --json</c> array into <see cref="GitHubPullRequest"/> values.</summary>
 	internal static IReadOnlyList<GitHubPullRequest> ParsePullRequests(string json)
 	{
-		using var document = JsonDocument.Parse(json);
+		using var document = Parse(json);
+		if (document.RootElement.ValueKind != JsonValueKind.Array)
+			throw Malformed("expected a JSON array");
+
 		var pullRequests = new List<GitHubPullRequest>();
 		foreach (var element in document.RootElement.EnumerateArray())
 			pullRequests.Add(ReadPullRequest(element));
@@ -21,14 +24,14 @@ internal static class GitHubOutputParser
 	/// <summary>Parses a single <c>gh pr view --json</c> object into a <see cref="GitHubPullRequest"/>.</summary>
 	internal static GitHubPullRequest ParsePullRequest(string json)
 	{
-		using var document = JsonDocument.Parse(json);
+		using var document = Parse(json);
 		return ReadPullRequest(document.RootElement);
 	}
 
 	/// <summary>Parses a <c>gh repo view --json</c> object into a <see cref="GitHubRepository"/>.</summary>
 	internal static GitHubRepository ParseRepository(string json)
 	{
-		using var document = JsonDocument.Parse(json);
+		using var document = Parse(json);
 		var root = document.RootElement;
 
 		var owner = root.TryGetProperty("owner", out var ownerElement) && ownerElement.ValueKind == JsonValueKind.Object
@@ -65,4 +68,22 @@ internal static class GitHubOutputParser
 		=> element.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.String
 			? value.GetString() ?? string.Empty
 			: string.Empty;
+
+	// Surface malformed `gh` JSON as the library's own exception rather than leaking a raw
+	// System.Text.Json.JsonException that callers would have to know about and catch separately.
+	private static JsonDocument Parse(string json)
+	{
+		try
+		{
+			return JsonDocument.Parse(json);
+		}
+		catch (JsonException ex)
+		{
+			throw new GitHubCliException(-1, string.Empty, string.Empty, false,
+				$"Could not parse `gh` JSON output: {ex.Message}", ex);
+		}
+	}
+
+	private static GitHubCliException Malformed(string detail)
+		=> new(-1, string.Empty, string.Empty, false, $"Unexpected `gh` JSON output: {detail}.");
 }
