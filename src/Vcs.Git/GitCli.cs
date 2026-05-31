@@ -9,11 +9,6 @@ namespace Vcs.Git;
 /// </summary>
 public sealed class GitCli : IGitCli
 {
-	// ASCII unit/record separators — used as field/record delimiters in `git log` pretty formats so
-	// they survive arbitrary subject text that could contain spaces, tabs or newlines.
-	private const char FieldSeparator = '';
-	private const char RecordSeparator = '';
-
 	private readonly ICommandExecutor _executor;
 	private readonly TimeSpan? _defaultTimeout;
 
@@ -25,21 +20,28 @@ public sealed class GitCli : IGitCli
 	/// overloads of <see cref="RunAsync(IEnumerable{string}, TimeSpan, CancellationToken)"/> /
 	/// <see cref="RunRawAsync(IEnumerable{string}, TimeSpan, CancellationToken)"/>.
 	/// </summary>
-	public GitCli(string? workingDirectory = null, string executable = "git", TimeSpan? defaultTimeout = null)
+	public GitCli(
+		string? workingDirectory = null,
+		string executable = "git",
+		TimeSpan? defaultTimeout = null,
+		IReadOnlyDictionary<string, string>? environment = null)
 	{
 		ArgumentException.ThrowIfNullOrEmpty(executable);
 		ValidateTimeout(defaultTimeout, nameof(defaultTimeout));
 		Executable = executable;
 		WorkingDirectory = workingDirectory;
+		// Snapshot so later external mutation of the caller's dictionary can't change this client.
+		Environment = environment is null ? null : new Dictionary<string, string>(environment);
 		_defaultTimeout = defaultTimeout;
-		_executor = new ProcessKitCommandExecutor(executable, workingDirectory);
+		_executor = new ProcessKitCommandExecutor(executable, workingDirectory, Environment);
 	}
 
-	internal GitCli(ICommandExecutor executor, string executable = "git", string? workingDirectory = null, TimeSpan? defaultTimeout = null)
+	internal GitCli(ICommandExecutor executor, string executable = "git", string? workingDirectory = null, TimeSpan? defaultTimeout = null, IReadOnlyDictionary<string, string>? environment = null)
 	{
 		_executor = executor;
 		Executable = executable;
 		WorkingDirectory = workingDirectory;
+		Environment = environment is null ? null : new Dictionary<string, string>(environment);
 		_defaultTimeout = defaultTimeout;
 	}
 
@@ -52,13 +54,16 @@ public sealed class GitCli : IGitCli
 	/// <summary>The timeout applied to commands that do not specify their own, or <c>null</c> for none.</summary>
 	public TimeSpan? DefaultTimeout => _defaultTimeout;
 
+	/// <summary>Environment variables applied (on top of the inherited environment) to every command, or <c>null</c>.</summary>
+	public IReadOnlyDictionary<string, string>? Environment { get; }
+
 	/// <summary>
 	/// Runs <c>git</c> with the given arguments (using <see cref="DefaultTimeout"/>) and returns the
 	/// full result without throwing on a non-zero exit code. Use this for commands not covered by a
 	/// typed wrapper.
 	/// </summary>
 	public Task<GitCommandResult> RunRawAsync(IEnumerable<string> arguments, CancellationToken cancellationToken = default)
-		=> RunRawCore(arguments, _defaultTimeout, cancellationToken);
+		=> RunRawCore(arguments, _defaultTimeout, standardInput: null, cancellationToken);
 
 	/// <summary>
 	/// Runs <c>git</c> with the given arguments, killing it after <paramref name="timeout"/>, and
@@ -66,14 +71,25 @@ public sealed class GitCli : IGitCli
 	/// <see cref="GitCommandResult.WasTimedOut"/>).
 	/// </summary>
 	public Task<GitCommandResult> RunRawAsync(IEnumerable<string> arguments, TimeSpan timeout, CancellationToken cancellationToken = default)
-		=> RunRawCore(arguments, timeout, cancellationToken);
+		=> RunRawCore(arguments, timeout, standardInput: null, cancellationToken);
+
+	/// <summary>
+	/// Runs <c>git</c> with the given arguments, piping <paramref name="standardInput"/> to the process's
+	/// stdin (optionally killing it after <paramref name="timeout"/>, else <see cref="DefaultTimeout"/>),
+	/// and returns the full result without throwing on a non-zero exit code.
+	/// </summary>
+	public Task<GitCommandResult> RunRawAsync(IEnumerable<string> arguments, string standardInput, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
+	{
+		ArgumentNullException.ThrowIfNull(standardInput);
+		return RunRawCore(arguments, timeout ?? _defaultTimeout, standardInput, cancellationToken);
+	}
 
 	/// <summary>
 	/// Runs <c>git</c> with the given arguments (using <see cref="DefaultTimeout"/>), throwing
 	/// <see cref="GitCliException"/> on a non-zero exit code, and returns the trimmed stdout on success.
 	/// </summary>
 	public Task<string> RunAsync(IEnumerable<string> arguments, CancellationToken cancellationToken = default)
-		=> RunCore(arguments, _defaultTimeout, cancellationToken);
+		=> RunCore(arguments, _defaultTimeout, standardInput: null, cancellationToken);
 
 	/// <summary>
 	/// Runs <c>git</c> with the given arguments, killing it after <paramref name="timeout"/>, throwing
@@ -81,21 +97,32 @@ public sealed class GitCli : IGitCli
 	/// <see cref="GitCliException.TimedOut"/> is <c>true</c>), and returns the trimmed stdout on success.
 	/// </summary>
 	public Task<string> RunAsync(IEnumerable<string> arguments, TimeSpan timeout, CancellationToken cancellationToken = default)
-		=> RunCore(arguments, timeout, cancellationToken);
+		=> RunCore(arguments, timeout, standardInput: null, cancellationToken);
 
-	private Task<GitCommandResult> RunRawCore(IEnumerable<string> arguments, TimeSpan? timeout, CancellationToken cancellationToken)
+	/// <summary>
+	/// Runs <c>git</c> with the given arguments, piping <paramref name="standardInput"/> to the process's
+	/// stdin (optionally killing it after <paramref name="timeout"/>, else <see cref="DefaultTimeout"/>),
+	/// throwing <see cref="GitCliException"/> on a non-zero exit, and returns the trimmed stdout on success.
+	/// </summary>
+	public Task<string> RunAsync(IEnumerable<string> arguments, string standardInput, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
+	{
+		ArgumentNullException.ThrowIfNull(standardInput);
+		return RunCore(arguments, timeout ?? _defaultTimeout, standardInput, cancellationToken);
+	}
+
+	private Task<GitCommandResult> RunRawCore(IEnumerable<string> arguments, TimeSpan? timeout, string? standardInput, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(arguments);
 		ValidateTimeout(timeout, nameof(timeout));
-		return _executor.RunAsync(AsList(arguments), timeout, cancellationToken);
+		return _executor.RunAsync(AsList(arguments), timeout, standardInput, cancellationToken);
 	}
 
-	private async Task<string> RunCore(IEnumerable<string> arguments, TimeSpan? timeout, CancellationToken cancellationToken)
+	private async Task<string> RunCore(IEnumerable<string> arguments, TimeSpan? timeout, string? standardInput, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(arguments);
 		ValidateTimeout(timeout, nameof(timeout));
 		var args = AsList(arguments);
-		var result = await _executor.RunAsync(args, timeout, cancellationToken).ConfigureAwait(false);
+		var result = await _executor.RunAsync(args, timeout, standardInput, cancellationToken).ConfigureAwait(false);
 		if (!result.IsSuccess)
 		{
 			var joined = string.Join(' ', args);
@@ -129,26 +156,7 @@ public sealed class GitCli : IGitCli
 	public async Task<IReadOnlyList<GitStatusEntry>> StatusAsync(CancellationToken cancellationToken = default)
 	{
 		var output = await RunAsync(["status", "--porcelain=v1"], cancellationToken).ConfigureAwait(false);
-		if (output.Length == 0)
-			return [];
-
-		var entries = new List<GitStatusEntry>();
-		foreach (var rawLine in output.Split('\n'))
-		{
-			var line = rawLine.TrimEnd('\r');
-			if (line.Length < 4)
-				continue;
-
-			var path = line[3..];
-			// Renames/copies are reported as "orig -> dest"; keep the destination path.
-			var arrow = path.IndexOf(" -> ", StringComparison.Ordinal);
-			if (arrow >= 0)
-				path = path[(arrow + 4)..];
-
-			entries.Add(new GitStatusEntry(line[0], line[1], path));
-		}
-
-		return entries;
+		return GitOutputParser.ParseStatus(output);
 	}
 
 	/// <summary>Stages the given paths (<c>git add &lt;paths&gt;</c>).</summary>
@@ -172,7 +180,7 @@ public sealed class GitCli : IGitCli
 		if (all)
 			args.Add("-a");
 		await RunAsync(args, cancellationToken).ConfigureAwait(false);
-		return await RunAsync(["rev-parse", "HEAD"], cancellationToken).ConfigureAwait(false);
+		return await RevParseAsync("HEAD", cancellationToken).ConfigureAwait(false);
 	}
 
 	/// <summary>
@@ -181,8 +189,7 @@ public sealed class GitCli : IGitCli
 	/// </summary>
 	public async Task<IReadOnlyList<GitCommit>> LogAsync(int? maxCount = null, CancellationToken cancellationToken = default)
 	{
-		var format = $"--pretty=format:%H{FieldSeparator}%h{FieldSeparator}%an{FieldSeparator}%aI{FieldSeparator}%s{RecordSeparator}";
-		var args = new List<string> { "log", format };
+		var args = new List<string> { "log", GitOutputParser.LogFormat };
 		if (maxCount is { } count)
 		{
 			args.Add("-n");
@@ -190,25 +197,7 @@ public sealed class GitCli : IGitCli
 		}
 
 		var output = await RunAsync(args, cancellationToken).ConfigureAwait(false);
-		if (output.Length == 0)
-			return [];
-
-		var commits = new List<GitCommit>();
-		foreach (var record in output.Split(RecordSeparator))
-		{
-			var trimmed = record.Trim('\n', '\r');
-			if (trimmed.Length == 0)
-				continue;
-
-			var fields = trimmed.Split(FieldSeparator);
-			if (fields.Length < 5)
-				continue;
-
-			var date = DateTimeOffset.Parse(fields[3], CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind);
-			commits.Add(new GitCommit(fields[0], fields[1], fields[2], date, fields[4]));
-		}
-
-		return commits;
+		return GitOutputParser.ParseLog(output);
 	}
 
 	/// <summary>
@@ -217,6 +206,23 @@ public sealed class GitCli : IGitCli
 	/// </summary>
 	public Task<string> CurrentBranchAsync(CancellationToken cancellationToken = default)
 		=> RunAsync(["branch", "--show-current"], cancellationToken);
+
+	/// <summary>
+	/// Returns the local branches (<c>git branch</c>) parsed into <see cref="GitBranch"/> values, with
+	/// the checked-out branch flagged via <see cref="GitBranch.IsCurrent"/>.
+	/// </summary>
+	public async Task<IReadOnlyList<GitBranch>> BranchesAsync(CancellationToken cancellationToken = default)
+	{
+		var output = await RunAsync(["branch"], cancellationToken).ConfigureAwait(false);
+		return GitOutputParser.ParseBranches(output);
+	}
+
+	/// <summary>Resolves a revision to its full commit hash (<c>git rev-parse &lt;revision&gt;</c>).</summary>
+	public Task<string> RevParseAsync(string revision, CancellationToken cancellationToken = default)
+	{
+		ArgumentException.ThrowIfNullOrEmpty(revision);
+		return RunAsync(["rev-parse", revision], cancellationToken);
+	}
 
 	/// <summary>Creates a branch pointing at <c>HEAD</c> (<c>git branch &lt;name&gt;</c>).</summary>
 	public Task CreateBranchAsync(string name, CancellationToken cancellationToken = default)

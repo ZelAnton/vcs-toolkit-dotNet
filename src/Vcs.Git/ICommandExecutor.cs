@@ -6,5 +6,5 @@ namespace Vcs.Git;
 /// </summary>
 internal interface ICommandExecutor
 {
-	Task<GitCommandResult> RunAsync(IReadOnlyList<string> arguments, TimeSpan? timeout, CancellationToken cancellationToken);
+	Task<GitCommandResult> RunAsync(IReadOnlyList<string> arguments, TimeSpan? timeout, string? standardInput, CancellationToken cancellationToken);
 }

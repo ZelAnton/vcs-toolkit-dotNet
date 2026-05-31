@@ -14,10 +14,13 @@ public class GitCliTests
 
 		public List<TimeSpan?> Timeouts { get; } = [];
 
-		public Task<GitCommandResult> RunAsync(IReadOnlyList<string> arguments, TimeSpan? timeout, CancellationToken cancellationToken)
+		public List<string?> StandardInputs { get; } = [];
+
+		public Task<GitCommandResult> RunAsync(IReadOnlyList<string> arguments, TimeSpan? timeout, string? standardInput, CancellationToken cancellationToken)
 		{
 			Calls.Add(arguments);
 			Timeouts.Add(timeout);
+			StandardInputs.Add(standardInput);
 			var result = _results.Count > 0 ? _results.Dequeue() : new GitCommandResult(string.Empty, string.Empty, 0);
 			return Task.FromResult(result);
 		}
@@ -428,6 +431,90 @@ public class GitCliTests
 			Assert.That(ex.StdErr, Is.EqualTo("fatal"));
 			Assert.That(ex.Arguments, Is.EqualTo("status"));
 			Assert.That(ex.TimedOut, Is.True);
+		});
+	}
+
+	[Test]
+	public async Task BranchesAsync_BuildsArguments_AndParses()
+	{
+		var fake = new FakeExecutor(Ok("* main\n  feature\n  (HEAD detached at abc123)\n"));
+		var branches = await new GitCli(fake).BranchesAsync();
+
+		Assert.That(fake.Calls[0], Is.EqualTo(new[] { "branch" }));
+		Assert.That(branches, Is.EqualTo(new[] { new GitBranch("main", true), new GitBranch("feature", false) }));
+	}
+
+	[Test]
+	public async Task RevParseAsync_BuildsArguments_AndTrims()
+	{
+		var fake = new FakeExecutor(Ok("abc123def456\n"));
+		var hash = await new GitCli(fake).RevParseAsync("HEAD");
+
+		Assert.That(hash, Is.EqualTo("abc123def456"));
+		Assert.That(fake.Calls[0], Is.EqualTo(new[] { "rev-parse", "HEAD" }));
+	}
+
+	[Test]
+	public void RevParseAsync_EmptyRevision_Throws()
+	{
+		var git = new GitCli(new FakeExecutor(Ok(string.Empty)));
+		Assert.ThrowsAsync<ArgumentException>(async () => await git.RevParseAsync(string.Empty));
+	}
+
+	[Test]
+	public async Task RunAsync_StdinOverload_PassesStandardInput()
+	{
+		var fake = new FakeExecutor(Ok("hash"));
+		await new GitCli(fake).RunAsync(["hash-object", "--stdin"], "file contents");
+
+		Assert.That(fake.StandardInputs[0], Is.EqualTo("file contents"));
+	}
+
+	[Test]
+	public async Task RunRawAsync_StdinOverload_PassesStandardInput()
+	{
+		var fake = new FakeExecutor(Ok(string.Empty));
+		await new GitCli(fake).RunRawAsync(["apply"], "patch data");
+
+		Assert.That(fake.StandardInputs[0], Is.EqualTo("patch data"));
+	}
+
+	[Test]
+	public void RunAsync_StdinOverload_NullStdin_Throws()
+	{
+		var git = new GitCli(new FakeExecutor(Ok(string.Empty)));
+		Assert.ThrowsAsync<ArgumentNullException>(async () => await git.RunAsync(["x"], (string)null!));
+	}
+
+	[Test]
+	public void Environment_IsSnapshotIndependentOfCaller()
+	{
+		var env = new Dictionary<string, string> { ["GIT_AUTHOR_NAME"] = "CI" };
+		var git = new GitCli(environment: env);
+		env["GIT_AUTHOR_NAME"] = "MUTATED";
+
+		Assert.Multiple(() =>
+		{
+			Assert.That(git.Environment, Has.Count.EqualTo(1));
+			Assert.That(git.Environment!["GIT_AUTHOR_NAME"], Is.EqualTo("CI"));
+			Assert.That(new GitCli().Environment, Is.Null);
+		});
+	}
+
+	[Test]
+	public void GitOutputParser_ParseBranches_MarksCurrentAndSkipsDetached()
+	{
+		var got = GitOutputParser.ParseBranches("* main\n  feature\n  (HEAD detached at abc123)\n");
+		Assert.That(got, Is.EqualTo(new[] { new GitBranch("main", true), new GitBranch("feature", false) }));
+	}
+
+	[Test]
+	public void GitOutputParser_ParseStatus_RenameKeepsDestination_AndEmptyIsEmpty()
+	{
+		Assert.Multiple(() =>
+		{
+			Assert.That(GitOutputParser.ParseStatus("R  old.cs -> new.cs")[0], Is.EqualTo(new GitStatusEntry('R', ' ', "new.cs")));
+			Assert.That(GitOutputParser.ParseStatus(string.Empty), Is.Empty);
 		});
 	}
 

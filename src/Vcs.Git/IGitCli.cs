@@ -18,6 +18,9 @@ public interface IGitCli
 	/// <summary>The timeout applied to commands that do not specify their own, or <c>null</c> for none.</summary>
 	TimeSpan? DefaultTimeout { get; }
 
+	/// <summary>Environment variables applied (on top of the inherited environment) to every command, or <c>null</c>.</summary>
+	IReadOnlyDictionary<string, string>? Environment { get; }
+
 	/// <summary>
 	/// Runs <c>git</c> with the given arguments (using <see cref="DefaultTimeout"/>) and returns the
 	/// full result without throwing on a non-zero exit code.
@@ -32,6 +35,13 @@ public interface IGitCli
 	Task<GitCommandResult> RunRawAsync(IEnumerable<string> arguments, TimeSpan timeout, CancellationToken cancellationToken = default);
 
 	/// <summary>
+	/// Runs <c>git</c> with the given arguments, piping <paramref name="standardInput"/> to stdin
+	/// (optionally killing it after <paramref name="timeout"/>, else <see cref="DefaultTimeout"/>), and
+	/// returns the full result without throwing on a non-zero exit code.
+	/// </summary>
+	Task<GitCommandResult> RunRawAsync(IEnumerable<string> arguments, string standardInput, TimeSpan? timeout = null, CancellationToken cancellationToken = default);
+
+	/// <summary>
 	/// Runs <c>git</c> with the given arguments (using <see cref="DefaultTimeout"/>), throwing
 	/// <see cref="GitCliException"/> on a non-zero exit code, and returns the trimmed stdout on success.
 	/// </summary>
@@ -43,6 +53,13 @@ public interface IGitCli
 	/// <see cref="GitCliException.TimedOut"/> is <c>true</c>), and returns the trimmed stdout on success.
 	/// </summary>
 	Task<string> RunAsync(IEnumerable<string> arguments, TimeSpan timeout, CancellationToken cancellationToken = default);
+
+	/// <summary>
+	/// Runs <c>git</c> with the given arguments, piping <paramref name="standardInput"/> to stdin
+	/// (optionally killing it after <paramref name="timeout"/>, else <see cref="DefaultTimeout"/>),
+	/// throwing <see cref="GitCliException"/> on a non-zero exit, and returns the trimmed stdout on success.
+	/// </summary>
+	Task<string> RunAsync(IEnumerable<string> arguments, string standardInput, TimeSpan? timeout = null, CancellationToken cancellationToken = default);
 
 	/// <summary>Returns the installed Git version string (<c>git --version</c>).</summary>
 	Task<string> VersionAsync(CancellationToken cancellationToken = default);
@@ -76,6 +93,15 @@ public interface IGitCli
 	/// <c>HEAD</c> is detached.
 	/// </summary>
 	Task<string> CurrentBranchAsync(CancellationToken cancellationToken = default);
+
+	/// <summary>
+	/// Returns the local branches (<c>git branch</c>) parsed into <see cref="GitBranch"/> values, with
+	/// the checked-out branch flagged via <see cref="GitBranch.IsCurrent"/>.
+	/// </summary>
+	Task<IReadOnlyList<GitBranch>> BranchesAsync(CancellationToken cancellationToken = default);
+
+	/// <summary>Resolves a revision to its full commit hash (<c>git rev-parse &lt;revision&gt;</c>).</summary>
+	Task<string> RevParseAsync(string revision, CancellationToken cancellationToken = default);
 
 	/// <summary>Creates a branch pointing at <c>HEAD</c> (<c>git branch &lt;name&gt;</c>).</summary>
 	Task CreateBranchAsync(string name, CancellationToken cancellationToken = default);

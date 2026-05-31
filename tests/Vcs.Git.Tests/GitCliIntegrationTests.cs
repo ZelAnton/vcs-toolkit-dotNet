@@ -51,7 +51,38 @@ public class GitCliIntegrationTests
 		});
 
 		Assert.That(await git.StatusAsync(), Is.Empty, "working tree should be clean after commit");
-		Assert.That(await git.CurrentBranchAsync(), Is.Not.Empty);
+		var currentBranch = await git.CurrentBranchAsync();
+		Assert.That(currentBranch, Is.Not.Empty);
+
+		var branches = await git.BranchesAsync();
+		Assert.That(branches, Has.Exactly(1).Matches<GitBranch>(b => b.Name == currentBranch && b.IsCurrent));
+		Assert.That(await git.RevParseAsync("HEAD"), Is.EqualTo(hash));
+	}
+
+	[Test]
+	public async Task StdinAndEnvironment_RoundTrip()
+	{
+		// stdin: `git hash-object --stdin` reads stdin and prints the object's SHA-1 — fully deterministic.
+		var git = new GitCli(workingDirectory: _repo);
+		await git.InitAsync();
+		var hash = await git.RunAsync(["hash-object", "--stdin"], "hello\n");
+		Assert.That(hash, Is.EqualTo("ce013625030ba8dba906f756967f9e9ca394464a"), "SHA-1 of \"hello\\n\"");
+
+		// environment: GIT_AUTHOR_* is honoured by the committed author.
+		var env = new Dictionary<string, string>
+		{
+			["GIT_AUTHOR_NAME"] = "Env Author",
+			["GIT_AUTHOR_EMAIL"] = "env@example.com",
+			["GIT_COMMITTER_NAME"] = "Env Author",
+			["GIT_COMMITTER_EMAIL"] = "env@example.com",
+		};
+		var gitWithEnv = new GitCli(workingDirectory: _repo, environment: env);
+		await File.WriteAllTextAsync(Path.Combine(_repo, "f.txt"), "x");
+		await gitWithEnv.StageAsync(["f.txt"]);
+		await gitWithEnv.CommitAsync("env commit");
+
+		var commits = await gitWithEnv.LogAsync(maxCount: 1);
+		Assert.That(commits[0].Author, Is.EqualTo("Env Author"));
 	}
 
 	[Test]

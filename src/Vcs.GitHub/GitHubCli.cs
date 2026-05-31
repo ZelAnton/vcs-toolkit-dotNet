@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text.Json;
 
 namespace Vcs.GitHub;
 
@@ -26,21 +25,28 @@ public sealed class GitHubCli : IGitHubCli
 	/// of <see cref="RunAsync(IEnumerable{string}, TimeSpan, CancellationToken)"/> /
 	/// <see cref="RunRawAsync(IEnumerable{string}, TimeSpan, CancellationToken)"/>.
 	/// </summary>
-	public GitHubCli(string? workingDirectory = null, string executable = "gh", TimeSpan? defaultTimeout = null)
+	public GitHubCli(
+		string? workingDirectory = null,
+		string executable = "gh",
+		TimeSpan? defaultTimeout = null,
+		IReadOnlyDictionary<string, string>? environment = null)
 	{
 		ArgumentException.ThrowIfNullOrEmpty(executable);
 		ValidateTimeout(defaultTimeout, nameof(defaultTimeout));
 		Executable = executable;
 		WorkingDirectory = workingDirectory;
+		// Snapshot so later external mutation of the caller's dictionary can't change this client.
+		Environment = environment is null ? null : new Dictionary<string, string>(environment);
 		_defaultTimeout = defaultTimeout;
-		_executor = new ProcessKitCommandExecutor(executable, workingDirectory);
+		_executor = new ProcessKitCommandExecutor(executable, workingDirectory, Environment);
 	}
 
-	internal GitHubCli(ICommandExecutor executor, string executable = "gh", string? workingDirectory = null, TimeSpan? defaultTimeout = null)
+	internal GitHubCli(ICommandExecutor executor, string executable = "gh", string? workingDirectory = null, TimeSpan? defaultTimeout = null, IReadOnlyDictionary<string, string>? environment = null)
 	{
 		_executor = executor;
 		Executable = executable;
 		WorkingDirectory = workingDirectory;
+		Environment = environment is null ? null : new Dictionary<string, string>(environment);
 		_defaultTimeout = defaultTimeout;
 	}
 
@@ -53,13 +59,16 @@ public sealed class GitHubCli : IGitHubCli
 	/// <summary>The timeout applied to commands that do not specify their own, or <c>null</c> for none.</summary>
 	public TimeSpan? DefaultTimeout => _defaultTimeout;
 
+	/// <summary>Environment variables applied (on top of the inherited environment) to every command, or <c>null</c>.</summary>
+	public IReadOnlyDictionary<string, string>? Environment { get; }
+
 	/// <summary>
 	/// Runs <c>gh</c> with the given arguments (using <see cref="DefaultTimeout"/>) and returns the
 	/// full result without throwing on a non-zero exit code. Use this for commands not covered by a
 	/// typed wrapper.
 	/// </summary>
 	public Task<GitHubCommandResult> RunRawAsync(IEnumerable<string> arguments, CancellationToken cancellationToken = default)
-		=> RunRawCore(arguments, _defaultTimeout, cancellationToken);
+		=> RunRawCore(arguments, _defaultTimeout, standardInput: null, cancellationToken);
 
 	/// <summary>
 	/// Runs <c>gh</c> with the given arguments, killing it after <paramref name="timeout"/>, and
@@ -67,14 +76,25 @@ public sealed class GitHubCli : IGitHubCli
 	/// <see cref="GitHubCommandResult.WasTimedOut"/>).
 	/// </summary>
 	public Task<GitHubCommandResult> RunRawAsync(IEnumerable<string> arguments, TimeSpan timeout, CancellationToken cancellationToken = default)
-		=> RunRawCore(arguments, timeout, cancellationToken);
+		=> RunRawCore(arguments, timeout, standardInput: null, cancellationToken);
+
+	/// <summary>
+	/// Runs <c>gh</c> with the given arguments, piping <paramref name="standardInput"/> to the process's
+	/// stdin (optionally killing it after <paramref name="timeout"/>, else <see cref="DefaultTimeout"/>),
+	/// and returns the full result without throwing on a non-zero exit code.
+	/// </summary>
+	public Task<GitHubCommandResult> RunRawAsync(IEnumerable<string> arguments, string standardInput, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
+	{
+		ArgumentNullException.ThrowIfNull(standardInput);
+		return RunRawCore(arguments, timeout ?? _defaultTimeout, standardInput, cancellationToken);
+	}
 
 	/// <summary>
 	/// Runs <c>gh</c> with the given arguments (using <see cref="DefaultTimeout"/>), throwing
 	/// <see cref="GitHubCliException"/> on a non-zero exit code, and returns the trimmed stdout on success.
 	/// </summary>
 	public Task<string> RunAsync(IEnumerable<string> arguments, CancellationToken cancellationToken = default)
-		=> RunCore(arguments, _defaultTimeout, cancellationToken);
+		=> RunCore(arguments, _defaultTimeout, standardInput: null, cancellationToken);
 
 	/// <summary>
 	/// Runs <c>gh</c> with the given arguments, killing it after <paramref name="timeout"/>, throwing
@@ -82,21 +102,32 @@ public sealed class GitHubCli : IGitHubCli
 	/// <see cref="GitHubCliException.TimedOut"/> is <c>true</c>), and returns the trimmed stdout on success.
 	/// </summary>
 	public Task<string> RunAsync(IEnumerable<string> arguments, TimeSpan timeout, CancellationToken cancellationToken = default)
-		=> RunCore(arguments, timeout, cancellationToken);
+		=> RunCore(arguments, timeout, standardInput: null, cancellationToken);
 
-	private Task<GitHubCommandResult> RunRawCore(IEnumerable<string> arguments, TimeSpan? timeout, CancellationToken cancellationToken)
+	/// <summary>
+	/// Runs <c>gh</c> with the given arguments, piping <paramref name="standardInput"/> to the process's
+	/// stdin (optionally killing it after <paramref name="timeout"/>, else <see cref="DefaultTimeout"/>),
+	/// throwing <see cref="GitHubCliException"/> on a non-zero exit, and returns the trimmed stdout on success.
+	/// </summary>
+	public Task<string> RunAsync(IEnumerable<string> arguments, string standardInput, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
+	{
+		ArgumentNullException.ThrowIfNull(standardInput);
+		return RunCore(arguments, timeout ?? _defaultTimeout, standardInput, cancellationToken);
+	}
+
+	private Task<GitHubCommandResult> RunRawCore(IEnumerable<string> arguments, TimeSpan? timeout, string? standardInput, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(arguments);
 		ValidateTimeout(timeout, nameof(timeout));
-		return _executor.RunAsync(AsList(arguments), timeout, cancellationToken);
+		return _executor.RunAsync(AsList(arguments), timeout, standardInput, cancellationToken);
 	}
 
-	private async Task<string> RunCore(IEnumerable<string> arguments, TimeSpan? timeout, CancellationToken cancellationToken)
+	private async Task<string> RunCore(IEnumerable<string> arguments, TimeSpan? timeout, string? standardInput, CancellationToken cancellationToken)
 	{
 		ArgumentNullException.ThrowIfNull(arguments);
 		ValidateTimeout(timeout, nameof(timeout));
 		var args = AsList(arguments);
-		var result = await _executor.RunAsync(args, timeout, cancellationToken).ConfigureAwait(false);
+		var result = await _executor.RunAsync(args, timeout, standardInput, cancellationToken).ConfigureAwait(false);
 		if (!result.IsSuccess)
 		{
 			var joined = string.Join(' ', args);
@@ -137,29 +168,7 @@ public sealed class GitHubCli : IGitHubCli
 		args.Add(RepositoryJsonFields);
 
 		var json = await RunAsync(args, cancellationToken).ConfigureAwait(false);
-		using var document = JsonDocument.Parse(json);
-		var root = document.RootElement;
-
-		var owner = root.TryGetProperty("owner", out var ownerElement) && ownerElement.ValueKind == JsonValueKind.Object
-			? ReadString(ownerElement, "login")
-			: string.Empty;
-		var defaultBranch = root.TryGetProperty("defaultBranchRef", out var branchElement) && branchElement.ValueKind == JsonValueKind.Object
-			? ReadString(branchElement, "name")
-			: string.Empty;
-
-		string? description = root.TryGetProperty("description", out var descElement) && descElement.ValueKind == JsonValueKind.String
-			? descElement.GetString()
-			: null;
-		if (string.IsNullOrEmpty(description))
-			description = null;
-
-		return new GitHubRepository(
-			ReadString(root, "name"),
-			owner,
-			description,
-			ReadString(root, "url"),
-			root.TryGetProperty("isPrivate", out var privateElement) && privateElement.ValueKind == JsonValueKind.True,
-			defaultBranch);
+		return GitHubOutputParser.ParseRepository(json);
 	}
 
 	/// <summary>
@@ -184,12 +193,7 @@ public sealed class GitHubCli : IGitHubCli
 		}
 
 		var json = await RunAsync(args, cancellationToken).ConfigureAwait(false);
-		using var document = JsonDocument.Parse(json);
-
-		var pullRequests = new List<GitHubPullRequest>();
-		foreach (var element in document.RootElement.EnumerateArray())
-			pullRequests.Add(ReadPullRequest(element));
-		return pullRequests;
+		return GitHubOutputParser.ParsePullRequests(json);
 	}
 
 	/// <summary>Returns a single pull request by number (<c>gh pr view &lt;number&gt; --json</c>).</summary>
@@ -201,8 +205,7 @@ public sealed class GitHubCli : IGitHubCli
 		};
 
 		var json = await RunAsync(args, cancellationToken).ConfigureAwait(false);
-		using var document = JsonDocument.Parse(json);
-		return ReadPullRequest(document.RootElement);
+		return GitHubOutputParser.ParsePullRequest(json);
 	}
 
 	/// <summary>
@@ -239,19 +242,6 @@ public sealed class GitHubCli : IGitHubCli
 
 		return RunAsync(args, cancellationToken);
 	}
-
-	private static GitHubPullRequest ReadPullRequest(JsonElement element) => new(
-		element.TryGetProperty("number", out var number) && number.ValueKind == JsonValueKind.Number ? number.GetInt32() : 0,
-		ReadString(element, "title"),
-		ReadString(element, "state"),
-		ReadString(element, "headRefName"),
-		ReadString(element, "baseRefName"),
-		ReadString(element, "url"));
-
-	private static string ReadString(JsonElement element, string propertyName)
-		=> element.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.String
-			? value.GetString() ?? string.Empty
-			: string.Empty;
 
 	private static IReadOnlyList<string> AsList(IEnumerable<string> arguments)
 		=> arguments as IReadOnlyList<string> ?? arguments.ToList();

@@ -14,10 +14,13 @@ public class JujutsuCliTests
 
 		public List<TimeSpan?> Timeouts { get; } = [];
 
-		public Task<JjCommandResult> RunAsync(IReadOnlyList<string> arguments, TimeSpan? timeout, CancellationToken cancellationToken)
+		public List<string?> StandardInputs { get; } = [];
+
+		public Task<JjCommandResult> RunAsync(IReadOnlyList<string> arguments, TimeSpan? timeout, string? standardInput, CancellationToken cancellationToken)
 		{
 			Calls.Add(arguments);
 			Timeouts.Add(timeout);
+			StandardInputs.Add(standardInput);
 			var result = _results.Count > 0 ? _results.Dequeue() : new JjCommandResult(string.Empty, string.Empty, 0);
 			return Task.FromResult(result);
 		}
@@ -419,6 +422,45 @@ public class JujutsuCliTests
 			Assert.That(ex.Arguments, Is.EqualTo("log"));
 			Assert.That(ex.TimedOut, Is.True);
 		});
+	}
+
+	[Test]
+	public async Task RunAsync_StdinOverload_PassesStandardInput()
+	{
+		var fake = new FakeExecutor(Ok(string.Empty));
+		await new JujutsuCli(fake).RunAsync(["describe", "--stdin"], "stdin description");
+
+		Assert.That(fake.StandardInputs[0], Is.EqualTo("stdin description"));
+	}
+
+	[Test]
+	public void Environment_IsSnapshotIndependentOfCaller()
+	{
+		var env = new Dictionary<string, string> { ["JJ_USER"] = "CI" };
+		var jj = new JujutsuCli(environment: env);
+		env["JJ_USER"] = "MUTATED";
+
+		Assert.Multiple(() =>
+		{
+			Assert.That(jj.Environment, Has.Count.EqualTo(1));
+			Assert.That(jj.Environment!["JJ_USER"], Is.EqualTo("CI"));
+			Assert.That(new JujutsuCli().Environment, Is.Null);
+		});
+	}
+
+	[Test]
+	public void JjOutputParser_ParseChanges_ParsesAndToleratesEmptyDescription()
+	{
+		var output =
+			$"chg1{Fs}commit1{Fs}false{Fs}First change{Rs}" +
+			$"chg2{Fs}commit2{Fs}true{Fs}{Rs}";
+		var changes = JjOutputParser.ParseChanges(output);
+
+		Assert.That(changes, Is.EqualTo(new[]
+		{
+			new JjChange("chg1", "commit1", "First change", false),
+			new JjChange("chg2", "commit2", string.Empty, true),
+		}));
 	}
 
 	// Exercises the real `jj` binary; excluded from the default CI run.

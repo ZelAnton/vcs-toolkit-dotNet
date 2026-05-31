@@ -11,10 +11,13 @@ public class GitHubCliTests
 
 		public List<TimeSpan?> Timeouts { get; } = [];
 
-		public Task<GitHubCommandResult> RunAsync(IReadOnlyList<string> arguments, TimeSpan? timeout, CancellationToken cancellationToken)
+		public List<string?> StandardInputs { get; } = [];
+
+		public Task<GitHubCommandResult> RunAsync(IReadOnlyList<string> arguments, TimeSpan? timeout, string? standardInput, CancellationToken cancellationToken)
 		{
 			Calls.Add(arguments);
 			Timeouts.Add(timeout);
+			StandardInputs.Add(standardInput);
 			var result = _results.Count > 0 ? _results.Dequeue() : new GitHubCommandResult(string.Empty, string.Empty, 0);
 			return Task.FromResult(result);
 		}
@@ -397,6 +400,44 @@ public class GitHubCliTests
 			Assert.That(ex.StdErr, Is.EqualTo("gh error"));
 			Assert.That(ex.Arguments, Is.EqualTo("pr list"));
 			Assert.That(ex.TimedOut, Is.True);
+		});
+	}
+
+	[Test]
+	public async Task RunAsync_StdinOverload_PassesStandardInput()
+	{
+		var fake = new FakeExecutor(Ok("{}"));
+		await new GitHubCli(fake).RunAsync(["pr", "create", "--body-file", "-"], "PR body text");
+
+		Assert.That(fake.StandardInputs[0], Is.EqualTo("PR body text"));
+	}
+
+	[Test]
+	public void Environment_IsSnapshotIndependentOfCaller()
+	{
+		var env = new Dictionary<string, string> { ["GH_TOKEN"] = "x" };
+		var gh = new GitHubCli(environment: env);
+		env["GH_TOKEN"] = "MUTATED";
+
+		Assert.Multiple(() =>
+		{
+			Assert.That(gh.Environment, Has.Count.EqualTo(1));
+			Assert.That(gh.Environment!["GH_TOKEN"], Is.EqualTo("x"));
+			Assert.That(new GitHubCli().Environment, Is.Null);
+		});
+	}
+
+	[Test]
+	public void GitHubOutputParser_ParseRepository_HandlesNullFields()
+	{
+		const string json = """{ "name": "r", "owner": { "login": "o" }, "description": null, "url": "u", "isPrivate": true, "defaultBranchRef": null }""";
+		var repo = GitHubOutputParser.ParseRepository(json);
+
+		Assert.Multiple(() =>
+		{
+			Assert.That(repo.Description, Is.Null);
+			Assert.That(repo.IsPrivate, Is.True);
+			Assert.That(repo.DefaultBranch, Is.Empty);
 		});
 	}
 

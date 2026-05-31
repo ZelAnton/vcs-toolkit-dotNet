@@ -41,6 +41,17 @@ var git = new GitCli(workingDirectory: ".", defaultTimeout: TimeSpan.FromSeconds
 var slowFetch = await git.RunRawAsync(["fetch", "--all"], TimeSpan.FromMinutes(5));
 ```
 
+Pass extra environment variables for every command via the `environment` constructor
+argument, and pipe stdin to a single command via the `standardInput` overloads:
+
+```csharp
+var env = new Dictionary<string, string> { ["GIT_AUTHOR_NAME"] = "CI" };
+var git = new GitCli(workingDirectory: ".", environment: env);
+
+// `standardInput` is piped to the process's stdin:
+string sha = await git.RunAsync(["hash-object", "--stdin"], standardInput: "blob contents\n");
+```
+
 ### `Vcs.Git`
 
 ```csharp

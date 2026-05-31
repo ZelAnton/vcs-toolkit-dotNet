@@ -13,23 +13,40 @@ internal sealed class ProcessKitCommandExecutor : ICommandExecutor
 	private readonly IProcessRunner _runner;
 	private readonly string _executable;
 	private readonly string? _workingDirectory;
+	private readonly IReadOnlyDictionary<string, string>? _environment;
 
-	internal ProcessKitCommandExecutor(string executable, string? workingDirectory, IProcessRunner? runner = null)
+	internal ProcessKitCommandExecutor(
+		string executable,
+		string? workingDirectory,
+		IReadOnlyDictionary<string, string>? environment = null,
+		IProcessRunner? runner = null)
 	{
 		_executable = executable;
 		_workingDirectory = workingDirectory;
+		_environment = environment;
 		_runner = runner ?? ProcessRunner.Default;
 	}
 
-	public async Task<GitCommandResult> RunAsync(IReadOnlyList<string> arguments, TimeSpan? timeout, CancellationToken cancellationToken)
+	public async Task<GitCommandResult> RunAsync(IReadOnlyList<string> arguments, TimeSpan? timeout, string? standardInput, CancellationToken cancellationToken)
 	{
 		var startInfo = new ProcessStartInfo(_executable);
 		foreach (var argument in arguments)
 			startInfo.ArgumentList.Add(argument);
 		if (_workingDirectory is not null)
 			startInfo.WorkingDirectory = _workingDirectory;
+		if (_environment is not null)
+		{
+			foreach (var (key, value) in _environment)
+				startInfo.Environment[key] = value;
+		}
 
-		var options = timeout is { } value ? new ProcessRunOptions { Timeout = value } : null;
+		var options = timeout is null && standardInput is null
+			? null
+			: new ProcessRunOptions
+			{
+				Timeout = timeout,
+				StandardInput = standardInput is null ? null : StandardInput.FromString(standardInput),
+			};
 
 		ProcessResult<string> result;
 		try

@@ -15,3 +15,8 @@ public sealed record GitCommit(string Hash, string ShortHash, string Author, Dat
 /// <param name="WorkTree">Status code of the unstaged (work-tree) side; a space means unmodified.</param>
 /// <param name="Path">Path of the changed entry (the destination path for renames/copies).</param>
 public sealed record GitStatusEntry(char Index, char WorkTree, string Path);
+
+/// <summary>A local branch as reported by <see cref="GitCli.BranchesAsync"/>.</summary>
+/// <param name="Name">The branch name.</param>
+/// <param name="IsCurrent"><c>true</c> for the checked-out branch (the <c>*</c> marker).</param>
+public sealed record GitBranch(string Name, bool IsCurrent);

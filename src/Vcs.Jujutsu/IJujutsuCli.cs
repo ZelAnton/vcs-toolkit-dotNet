@@ -19,6 +19,9 @@ public interface IJujutsuCli
 	/// <summary>The timeout applied to commands that do not specify their own, or <c>null</c> for none.</summary>
 	TimeSpan? DefaultTimeout { get; }
 
+	/// <summary>Environment variables applied (on top of the inherited environment) to every command, or <c>null</c>.</summary>
+	IReadOnlyDictionary<string, string>? Environment { get; }
+
 	/// <summary>
 	/// Runs <c>jj</c> with the given arguments (using <see cref="DefaultTimeout"/>) and returns the
 	/// full result without throwing on a non-zero exit code.
@@ -33,6 +36,13 @@ public interface IJujutsuCli
 	Task<JjCommandResult> RunRawAsync(IEnumerable<string> arguments, TimeSpan timeout, CancellationToken cancellationToken = default);
 
 	/// <summary>
+	/// Runs <c>jj</c> with the given arguments, piping <paramref name="standardInput"/> to stdin
+	/// (optionally killing it after <paramref name="timeout"/>, else <see cref="DefaultTimeout"/>), and
+	/// returns the full result without throwing on a non-zero exit code.
+	/// </summary>
+	Task<JjCommandResult> RunRawAsync(IEnumerable<string> arguments, string standardInput, TimeSpan? timeout = null, CancellationToken cancellationToken = default);
+
+	/// <summary>
 	/// Runs <c>jj</c> with the given arguments (using <see cref="DefaultTimeout"/>), throwing
 	/// <see cref="JujutsuCliException"/> on a non-zero exit code, and returns the trimmed stdout on success.
 	/// </summary>
@@ -44,6 +54,13 @@ public interface IJujutsuCli
 	/// <see cref="JujutsuCliException.TimedOut"/> is <c>true</c>), and returns the trimmed stdout on success.
 	/// </summary>
 	Task<string> RunAsync(IEnumerable<string> arguments, TimeSpan timeout, CancellationToken cancellationToken = default);
+
+	/// <summary>
+	/// Runs <c>jj</c> with the given arguments, piping <paramref name="standardInput"/> to stdin
+	/// (optionally killing it after <paramref name="timeout"/>, else <see cref="DefaultTimeout"/>),
+	/// throwing <see cref="JujutsuCliException"/> on a non-zero exit, and returns the trimmed stdout on success.
+	/// </summary>
+	Task<string> RunAsync(IEnumerable<string> arguments, string standardInput, TimeSpan? timeout = null, CancellationToken cancellationToken = default);
 
 	/// <summary>Returns the installed Jujutsu version string (<c>jj --version</c>).</summary>
 	Task<string> VersionAsync(CancellationToken cancellationToken = default);

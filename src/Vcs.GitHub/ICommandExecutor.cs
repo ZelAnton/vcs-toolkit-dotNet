@@ -6,5 +6,5 @@ namespace Vcs.GitHub;
 /// </summary>
 internal interface ICommandExecutor
 {
-	Task<GitHubCommandResult> RunAsync(IReadOnlyList<string> arguments, TimeSpan? timeout, CancellationToken cancellationToken);
+	Task<GitHubCommandResult> RunAsync(IReadOnlyList<string> arguments, TimeSpan? timeout, string? standardInput, CancellationToken cancellationToken);
 }
