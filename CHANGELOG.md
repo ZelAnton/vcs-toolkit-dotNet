@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - All three packages: marked `IsAotCompatible` (and trimmable), so consumers can `PublishTrimmed`/`PublishAot` without warnings; a Native AOT smoke test (`tests/Vcs.Aot.SmokeTest`) native-compiles and runs the parsing and process paths in CI to enforce this.
 
 ### Changed
+- All three packages: bumped the ProcessKit dependency to 1.3.1 (was 1.2.0). It now always closes a command's stdin at start when no input is piped, removing a latent hang where a command that unexpectedly read stdin could block waiting for input that never arrives (until the timeout, or indefinitely if none was set).
 - All three clients: a missing or unstartable executable now throws the library's own `*CliException` (`Could not start ...`) instead of leaking a raw `System.ComponentModel.Win32Exception`; the original is preserved as `InnerException`.
 - `Vcs.Git`: replaced the placeholder `GitCli.ExecutableName` property with the real command API (`GitCli.Executable`).
 - `Vcs.Jujutsu`: replaced the placeholder `JujutsuCli.ExecutableName` property with the real command API (`JujutsuCli.Executable`).

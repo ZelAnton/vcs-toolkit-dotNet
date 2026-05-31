@@ -170,8 +170,9 @@ These rules are shared by all three clients.
   command is built on it.
 - **`RunRawAsync`** is the lenient path: it **never throws** on a non-zero exit and
   returns a `*CommandResult` (`StdOut`, `StdErr`, `ExitCode`, `IsSuccess`, `WasTimedOut`)
-  with stdout **untrimmed** — use it when you need the exact bytes or want to handle a
-  failing exit code yourself.
+  with stdout **untrimmed** — use it to inspect the full output or handle a failing exit
+  code yourself. Note `StdOut` is captured line-by-line (see [Encoding & line endings](#encoding--line-endings)),
+  so it is not a byte-for-byte copy of the process's stdout.
 
 ### Timeouts
 
@@ -209,10 +210,16 @@ string sha = await git.RunAsync(["hash-object", "--stdin"], standardInput: "blob
 | Executable missing / not startable | throws `*CliException` (`Could not start …`, inner `Win32Exception`) | same |
 | Malformed tool output (`Vcs.GitHub` JSON) | throws `GitHubCliException` (inner `JsonException`) | n/a (no parsing) |
 
-### Encoding & paths
+### Encoding & line endings
 
 Output is decoded as UTF-8. `Vcs.Git.StatusAsync` runs with `core.quotePath=false`, so
 non-ASCII paths come back verbatim rather than C-quoted/octal-escaped.
+
+Captured stdout is read line-by-line and re-joined with the host newline
+(`Environment.NewLine`), so the original line-ending style (e.g. `\n` on Unix) and any
+trailing newline are **not** preserved — `StdOut` is not a byte-for-byte copy of the
+process's output. This is invisible to the typed commands (their parsers are
+newline-agnostic); it only matters if you compare raw `RunRawAsync` output byte-for-byte.
 
 ### Thread-safety & reuse
 

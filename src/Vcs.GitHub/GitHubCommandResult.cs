@@ -4,7 +4,7 @@ namespace Vcs.GitHub;
 /// Outcome of a single <c>gh</c> invocation: its captured stdout, stderr and raw exit code.
 /// Returned by <see cref="GitHubCli.RunRawAsync"/>, which never throws on a non-zero exit.
 /// </summary>
-/// <param name="StdOut">Standard output, decoded as UTF-8 (not trimmed).</param>
+/// <param name="StdOut">Standard output, decoded as UTF-8. Captured line-by-line and re-joined with the host newline (<c>Environment.NewLine</c>), so the original line-ending style (e.g. <c>\n</c> on Unix) and any trailing newline are not preserved; otherwise not trimmed.</param>
 /// <param name="StdErr">Standard error, decoded as UTF-8.</param>
 /// <param name="ExitCode">The raw process exit code.</param>
 public readonly record struct GitHubCommandResult(string StdOut, string StdErr, int ExitCode)
